@@ -252,7 +252,16 @@ VALUES
 	qDebug() << "match" << (match.hasMatch() ? "":"not") << "found";
 
 	QString database_file = "D:/src/libgen_compact.sql";
-#if 1
+
+	database_scanner = new DatabaseScanner(database_file);
+	database_scanner->moveToThread(&database_scanner_thread);
+	connect(&database_scanner_thread, &QThread::finished, database_scanner, &QObject::deleteLater);
+	connect(&database_scanner_thread, &QThread::started, database_scanner, &DatabaseScanner::scan);
+	connect(database_scanner, &DatabaseScanner::error, this, &MainWindow::displayErrorMessage);
+	connect(database_scanner, &DatabaseScanner::message, this, &MainWindow::displayMessage);
+	connect(database_scanner, &DatabaseScanner::done, this, &MainWindow::database_scanner_thread_done);
+	database_scanner_thread.start();
+#if 0
 	QFile f;
 	f.setFileName(database_file);
 	if (!f.open(QFile::ReadOnly))
@@ -369,5 +378,7 @@ VALUES
 
 MainWindow::~MainWindow()
 {
+	/* If any database scanner thread cleanup is needed - make sure to do so here.
+	 * At this time, no cleanup is needed, so the program exits immediately. */
 	delete ui;
 }

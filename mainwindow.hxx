@@ -16,16 +16,6 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
-
-
-
-
-
-
-
-
-
-
 enum
 {
 	/* Expected number of records in the database entry. */
@@ -143,24 +133,6 @@ database_items[DATABASE_RECORD_COUNT] =
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #if 1
 class DatabaseScanner : public QObject
 {
@@ -217,7 +189,7 @@ private:
 					t = scan_number(data, offset);
 					if (t == -1)
 					{
-						qDebug() << "database record is:" << data.mid(offset - len, 100);
+						emit error("Unrecognized database record: " + data.mid(offset - len, 100));
 						QMessageBox::critical(0, "Error scanning a number item", "Expected a number item, but the scan fails; aborting"); return -1;
 					}
 					scanned_database_items << data.mid(offset, t);
@@ -226,7 +198,7 @@ private:
 					t = scan_string(data, offset);
 					if (t == -1)
 					{
-						qDebug() << "database record is:" << data.mid(offset - len, 100);
+						emit error("Unrecognized database record: " + data.mid(offset - len, 100));
 						QMessageBox::critical(0, "Error scanning a string item", "Expected a string item, but the scan fails; aborting"); return -1;
 					}
 					scanned_database_items << data.mid(offset + 1, t - 2);
@@ -284,6 +256,10 @@ public:
 		QMap<QString /* topic */, QList<QStringList /* title, md5 hash */>> titles_by_topic;
 	}
 	database_statistics;
+signals:
+	void error(const QString error_message);
+	void message(const QString message);
+	void done(void);
 public slots:
 	void scan(void)
 	{
@@ -291,21 +267,27 @@ public slots:
 		f.setFileName(database_filename);
 		if (!f.open(QFile::ReadOnly))
 		{
-			QMessageBox::critical(0, "Error opening database", "Can not open database file\n" + f.fileName());
+			QString error_message = "Can not open database file\n" + f.fileName();
+			QMessageBox::critical(0, "Error opening database", error_message);
+			emit error(error_message);
 			return;
 		}
 
 		english_titles.setFileName("english-titles.txt");
 		if (!english_titles.open(QFile::WriteOnly))
 		{
-			QMessageBox::critical(0, "Error creating english output titles file", "Failed to create the output file for english book titles");
-			exit(1);
+			QString error_message = "Failed to create the output file for english book titles";
+			QMessageBox::critical(0, "Error creating english output titles file", error_message);
+			emit error(error_message);
+			return;
 		}
 		russian_titles.setFileName("russian-titles.txt");
 		if (!russian_titles.open(QFile::WriteOnly))
 		{
-			QMessageBox::critical(0, "Error creating russian output titles file", "Failed to create the output file for russian book titles");
-			exit(1);
+			QString error_message = "Failed to create the output file for russian book titles";
+			QMessageBox::critical(0, "Error creating english output titles file", error_message);
+			emit error(error_message);
+			return;
 		}
 
 		int line = 0;
@@ -345,21 +327,28 @@ public slots:
 			}
 			if (line && !(line % 100))
 			{
-				qDebug() << line << "lines read, records found:" << records << "time elapsed (ms):" << timer.elapsed();
+				emit message(QString("%1 lines read, records found: %2; time elapsed (ms): %3").arg(line).arg(records).arg(timer.elapsed()));
+				qDebug() << QString("%1 lines read, records found: %2; time elapsed (ms): %3").arg(line).arg(records).arg(timer.elapsed());
 				timer.restart();
 			}
 		}
 
-		qDebug() << "---------------------------------------------";
-		qDebug() << line << "lines read";
-		qDebug() << "records found:" << records;
+		emit message("---------------------------------------------");
+		emit message(QString("%1 lines read").arg(line));
+		emit message(QString("%1 records found").arg(records));
 		QStringList languages = QStringList()
 				<< "bulgarian" << "russian" << "english" << /* unspecified language */"";
 		for (const auto & l : languages)
-			qDebug().noquote() << (l.isEmpty() ? "unspecified language" : l) << "books found:" << database_statistics.language_counts.operator[](l) << "total size:" << ((double) database_statistics.language_total_size.operator[](l)) / 1.e12 << "terabytes";
+		{
+			emit message(QString("%1 books found: %2; total size: %3 terabytes")
+				     .arg(l.isEmpty() ? "unspecified language" : l)
+				     .arg(database_statistics.language_counts.operator[](l))
+					.arg(((double) database_statistics.language_total_size.operator[](l)) / 1.e12));
+		}
 
 		english_titles.close();
 		russian_titles.close();
+		emit done();
 	}
 };
 #endif
@@ -373,6 +362,8 @@ public:
 	~MainWindow();
 
 private:
+	QThread database_scanner_thread;
+	DatabaseScanner * database_scanner;
 	QFile english_titles;
 	QFile russian_titles;
 	Ui::MainWindow *ui;
@@ -516,5 +507,18 @@ private:
 		QTextCursor c(ui->plainTextEditTopics->textCursor());
 		c.movePosition(QTextCursor::Start);
 		ui->plainTextEditTopics->setTextCursor(c);
+	}
+private slots:
+	void displayErrorMessage(const QString & error_message)
+	{
+		ui->plainTextEditTitles->appendPlainText("Database scan error: " + error_message);
+	}
+	void displayMessage(const QString & message)
+	{
+		ui->plainTextEditTitles->appendPlainText("Database scanner message: " + message);
+	}
+	void database_scanner_thread_done(void)
+	{
+		setEnabled(true);
 	}
 };
