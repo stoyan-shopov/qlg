@@ -247,7 +247,6 @@ VALUES
 		"'0071363629'"
 		")"
 	;
-	QString s1 = "INSERT INTO `updated` (`ID`, `Title`, `VolumeInfo`, `Series`, `Periodical`, `Author`, `Year`, `Edition`, `Publisher`, `City`, `Pages`, `PagesInFile`, `Language`, `Topic`, `Library`, `Issue`, `Identifier`, `ISSN`, `ASIN`, `UDC`, `LBC`, `DDC`, `LCC`, `Doi`, `Googlebookid`, `OpenLibraryID`, `Commentary`, `DPI`, `Color`, `Cleaned`, `Orientation`, `Paginated`, `Scanned`, `Bookmarked`, `Searchable`, `Filesize`, `Extension`, `MD5`, `Generic`, `Visible`, `Locator`, `Local`, `TimeAdded`, `TimeLastModified`, `Coverurl`, `Tags`, `IdentifierWODash`) VALUES (";
 	match = rx.match(s);
 	qDebug() << "match" << (match.hasMatch() ? "":"not") << "found";
 
@@ -260,81 +259,8 @@ VALUES
 	connect(database_scanner, &DatabaseScanner::error, this, &MainWindow::displayErrorMessage);
 	connect(database_scanner, &DatabaseScanner::message, this, &MainWindow::displayMessage);
 	connect(database_scanner, &DatabaseScanner::done, this, &MainWindow::database_scanner_thread_done);
+	setEnabled(false);
 	database_scanner_thread.start();
-#if 0
-	QFile f;
-	f.setFileName(database_file);
-	if (!f.open(QFile::ReadOnly))
-	{
-		QMessageBox::critical(0, "Error opening database", "Can not open database file\n" + f.fileName());
-		return;
-	}
-
-	english_titles.setFileName("english-titles.txt");
-	if (!english_titles.open(QFile::WriteOnly))
-	{
-		QMessageBox::critical(0, "Error creating english output titles file", "Failed to create the output file for english book titles");
-		exit(1);
-	}
-	russian_titles.setFileName("russian-titles.txt");
-	if (!russian_titles.open(QFile::WriteOnly))
-	{
-		QMessageBox::critical(0, "Error creating russian output titles file", "Failed to create the output file for russian book titles");
-		exit(1);
-	}
-
-	int line = 0;
-	int records = 0;
-	QTime timer;
-	timer.start();
-	QString l;
-	while (1)
-	{
-		if (f.atEnd())
-			break;
-		line ++;
-		if (!(l = f.readLine()).length())
-			continue;
-		if (!l.startsWith("INSERT INTO `updated`"))
-			continue;
-		match = rx_value_insert.match(l);
-		if (match.hasMatch())
-		{
-			int index = match.capturedEnd() - /* get back to the opening parenthesis */ 1;
-			while (index < l.length()){
-				if (l.at(index) == '(')
-				{
-					int t = scan_database_record(l, index);
-					if (t == -1)
-					{
-						QMessageBox::critical(0, "Error parsing database record", "Failed to parse database record");
-						break;
-					}
-					records ++;
-					index += t;
-				}
-				else
-					index ++;
-			}
-		}
-		if (line && !(line % 100))
-		{
-			qDebug() << line << "lines read, records found:" << records << "time elapsed (ms):" << timer.elapsed();
-			timer.restart();
-		}
-	}
-
-	qDebug() << "---------------------------------------------";
-	qDebug() << line << "lines read";
-	qDebug() << "records found:" << records;
-	QStringList languages = QStringList()
-		<< "bulgarian" << "russian" << "english" << /* unspecified language */"";
-	for (const auto & l : languages)
-		qDebug().noquote() << (l.isEmpty() ? "unspecified language" : l) << "books found:" << database_statistics.language_counts.operator[](l) << "total size:" << ((double) database_statistics.language_total_size.operator[](l)) / 1.e12 << "terabytes";
-
-	english_titles.close();
-	russian_titles.close();
-#endif
 
 	connect(ui->pushButtonLoadEnglishTitles, &QPushButton::clicked, [=](void)->void
 	{
@@ -351,7 +277,7 @@ VALUES
 	{
 		QString s;
 		ui->plainTextEditTitles->clear();
-		for (const auto & topic : database_statistics.titles_by_topic)
+		for (const auto & topic : database_scanner->database_statistics.titles_by_topic)
 			for (const auto & item : topic)
 				s += (item.at(0)), s += '\n';
 		ui->plainTextEditTitles->setPlainText(s);
@@ -368,7 +294,7 @@ VALUES
 		QString s;
 		int i = 0;
 		ui->plainTextEditTitles->clear();
-			for (const auto & item : database_statistics.titles_by_topic.operator[](QString("%1").arg(get_selected_topic())))
+			for (const auto & item : database_scanner->database_statistics.titles_by_topic.operator[](QString("%1").arg(get_selected_topic())))
 				s += (item.at(0)), s += '\n', i ++;
 		ui->plainTextEditTitles->setPlainText(s);
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
