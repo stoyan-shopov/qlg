@@ -31,6 +31,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButtonListTitlesForTopic">
+        <property name="text">
+         <string>List titles for topic</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="pushButtonPopulateTitlesByTopic">
         <property name="text">
          <string>Populate titles by topic</string>

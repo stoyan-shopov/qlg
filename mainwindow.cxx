@@ -1,8 +1,5 @@
 #include "mainwindow.hxx"
 
-#include <QFile>
-#include <QTime>
-
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
 	, ui(new Ui::MainWindow)
@@ -248,8 +245,6 @@ VALUES
 		"'0/7b2a4d53fde834e801c26a2bab7e0240.jpg',"
 		"'',"
 		"'0071363629'"
-#if 0
-#endif
 		")"
 	;
 	QString s1 = "INSERT INTO `updated` (`ID`, `Title`, `VolumeInfo`, `Series`, `Periodical`, `Author`, `Year`, `Edition`, `Publisher`, `City`, `Pages`, `PagesInFile`, `Language`, `Topic`, `Library`, `Issue`, `Identifier`, `ISSN`, `ASIN`, `UDC`, `LBC`, `DDC`, `LCC`, `Doi`, `Googlebookid`, `OpenLibraryID`, `Commentary`, `DPI`, `Color`, `Cleaned`, `Orientation`, `Paginated`, `Scanned`, `Bookmarked`, `Searchable`, `Filesize`, `Extension`, `MD5`, `Generic`, `Visible`, `Locator`, `Local`, `TimeAdded`, `TimeLastModified`, `Coverurl`, `Tags`, `IdentifierWODash`) VALUES (";
@@ -257,6 +252,7 @@ VALUES
 	qDebug() << "match" << (match.hasMatch() ? "":"not") << "found";
 
 	QString database_file = "D:/src/libgen_compact.sql";
+#if 1
 	QFile f;
 	f.setFileName(database_file);
 	if (!f.open(QFile::ReadOnly))
@@ -329,6 +325,7 @@ VALUES
 
 	english_titles.close();
 	russian_titles.close();
+#endif
 
 	connect(ui->pushButtonLoadEnglishTitles, &QPushButton::clicked, [=](void)->void
 	{
@@ -349,6 +346,23 @@ VALUES
 			for (const auto & item : topic)
 				s += (item.at(0)), s += '\n';
 		ui->plainTextEditTitles->setPlainText(s);
+	});
+	connect(ui->plainTextEditTopics, & QPlainTextEdit::cursorPositionChanged, [=] (void) -> void
+	{
+		QTextCursor c(ui->plainTextEditTopics->textCursor());
+		c.select(QTextCursor::LineUnderCursor);
+		ui->plainTextEditTopics->setTextCursor(c);
+		qDebug() << "topic selected:" << get_selected_topic();
+	});
+	connect(ui->pushButtonListTitlesForTopic, &QPushButton::clicked, [=](void)->void
+	{
+		QString s;
+		int i = 0;
+		ui->plainTextEditTitles->clear();
+			for (const auto & item : database_statistics.titles_by_topic.operator[](QString("%1").arg(get_selected_topic())))
+				s += (item.at(0)), s += '\n', i ++;
+		ui->plainTextEditTitles->setPlainText(s);
+		ui->statusbar->showMessage(QString("%1 items found").arg(i));
 	});
 	populate_topic_list();
 }
