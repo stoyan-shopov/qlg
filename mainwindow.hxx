@@ -3,7 +3,12 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QMap>
+#include <QFile>
+#include <QRegularExpression>
+#include <QTextCursor>
+
 #include <QDebug>
+#include "ui_mainwindow.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,6 +23,8 @@ public:
 	~MainWindow();
 
 private:
+	QFile english_titles;
+	QFile russian_titles;
 	Ui::MainWindow *ui;
 	int scan_number(const QString & data, int offset)
 	{
@@ -53,6 +60,7 @@ private:
 	{
 		QMap<QString /* language */, unsigned /* count */> language_counts;
 		QMap<QString /* language */, quint64 /* total size in bytes */> language_total_size;
+		QMap<QString /* topic */, QList<QStringList /* title, md5 hash */>> titles_by_topic;
 	}
 	database_statistics;
 	enum
@@ -224,7 +232,42 @@ private:
 
 		database_statistics.language_counts.operator[](l) ++;
 		database_statistics.language_total_size.operator[](l) += size;
+		database_statistics.titles_by_topic.operator[](scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC))
+				<< (QStringList() << scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE) << scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH));
+		if (l == "english")
+		{
+			QString topic = scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC);
+			if (topic.isEmpty())
+				topic = "<unspecified topic>";
+			english_titles.write(QString("%1::%2::%3\n")
+				.arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
+				.arg(topic)
+				.arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
+		}
+		else if (l == "russian")
+		{
+			russian_titles.write(QString("%1::%2\n").arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC)).arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
+		}
 
 		return len + 1;
+	}
+
+	void populate_topic_list(void)
+	{
+		QRegularExpression rx("\\((\\d+),'([^']*)'");
+		QFile f(":/resources/topics.txt");
+		f.open(QFile::ReadOnly);
+		QString line;
+		ui->plainTextEditTopics->clear();
+		while (!f.atEnd())
+		{
+			line = f.readLine();
+			QRegularExpressionMatch match = rx.match(line);
+			if (match.hasMatch())
+				ui->plainTextEditTopics->appendPlainText(QString("%1::%2").arg(match.captured(1)).arg(match.captured(2)));
+		}
+		QTextCursor c(ui->plainTextEditTopics->textCursor());
+		c.movePosition(QTextCursor::Start);
+		ui->plainTextEditTopics->setTextCursor(c);
 	}
 };

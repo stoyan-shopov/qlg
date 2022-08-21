@@ -1,8 +1,7 @@
 #include "mainwindow.hxx"
-#include "ui_mainwindow.h"
 
-#include <QRegularExpression>
 #include <QFile>
+#include <QTime>
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -257,7 +256,7 @@ VALUES
 	match = rx.match(s);
 	qDebug() << "match" << (match.hasMatch() ? "":"not") << "found";
 
-	QString database_file = "F:/arena/libgen_compact.sql";
+	QString database_file = "D:/src/libgen_compact.sql";
 	QFile f;
 	f.setFileName(database_file);
 	if (!f.open(QFile::ReadOnly))
@@ -266,11 +265,23 @@ VALUES
 		return;
 	}
 
-
-	qDebug() << "test: parse single record, result:" << scan_database_record(s, 0);
+	english_titles.setFileName("english-titles.txt");
+	if (!english_titles.open(QFile::WriteOnly))
+	{
+		QMessageBox::critical(0, "Error creating english output titles file", "Failed to create the output file for english book titles");
+		exit(1);
+	}
+	russian_titles.setFileName("russian-titles.txt");
+	if (!russian_titles.open(QFile::WriteOnly))
+	{
+		QMessageBox::critical(0, "Error creating russian output titles file", "Failed to create the output file for russian book titles");
+		exit(1);
+	}
 
 	int line = 0;
 	int records = 0;
+	QTime timer;
+	timer.start();
 	QString l;
 	while (1)
 	{
@@ -300,22 +311,46 @@ VALUES
 				else
 					index ++;
 			}
-#if 0
-			int position = match.capturedEnd() - /* get back to the opening parenthesis */ 1;
-			qDebug() << "match found at line" << line << ", position" << position;
-			while ((match = rx.match(l, position)).hasMatch())
-				records ++, position = match.capturedEnd();
-#endif
 		}
-		qDebug() << line << "lines read, records found so far:" << records;
+		if (line && !(line % 100))
+		{
+			qDebug() << line << "lines read, records found:" << records << "time elapsed (ms):" << timer.elapsed();
+			timer.restart();
+		}
 	}
 
+	qDebug() << "---------------------------------------------";
 	qDebug() << line << "lines read";
 	qDebug() << "records found:" << records;
 	QStringList languages = QStringList()
 		<< "bulgarian" << "russian" << "english" << /* unspecified language */"";
 	for (const auto & l : languages)
-		qDebug() << l << "books found:" << database_statistics.language_counts.operator[](l) << "total size in bytes:" << database_statistics.language_total_size.operator[](l);
+		qDebug().noquote() << (l.isEmpty() ? "unspecified language" : l) << "books found:" << database_statistics.language_counts.operator[](l) << "total size:" << ((double) database_statistics.language_total_size.operator[](l)) / 1.e12 << "terabytes";
+
+	english_titles.close();
+	russian_titles.close();
+
+	connect(ui->pushButtonLoadEnglishTitles, &QPushButton::clicked, [=](void)->void
+	{
+		QFile f("english-titles.txt");
+		if (!f.open(QFile::ReadOnly))
+		{
+			QMessageBox::critical(0, "Error opening english titles file", "Failed to open the english book titles file");
+			return;
+		}
+		ui->plainTextEditTitles->clear();
+		ui->plainTextEditTitles->setPlainText(f.readAll());
+	});
+	connect(ui->pushButtonPopulateTitlesByTopic, &QPushButton::clicked, [=](void)->void
+	{
+		QString s;
+		ui->plainTextEditTitles->clear();
+		for (const auto & topic : database_statistics.titles_by_topic)
+			for (const auto & item : topic)
+				s += (item.at(0)), s += '\n';
+		ui->plainTextEditTitles->setPlainText(s);
+	});
+	populate_topic_list();
 }
 
 MainWindow::~MainWindow()
