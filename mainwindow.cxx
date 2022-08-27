@@ -144,7 +144,7 @@ VALUES
 ),
 	 */
 	QRegularExpression rx(
-		"[^\\(]*\\("		/* opening parenthesis */
+		"[^\\(]*\\("	/* opening parenthesis */
 		"(\\d+),"	/* id */
 		"'([^']*)',"	/* title */
 		"'([^']*)',"	/* volume info */
@@ -252,6 +252,7 @@ VALUES
 
 	QString database_file = "D:/src/libgen_compact.sql";
 
+	populate_topic_list();
 	database_scanner = new DatabaseScanner(database_file);
 	database_scanner->moveToThread(&database_scanner_thread);
 	connect(&database_scanner_thread, &QThread::finished, database_scanner, &QObject::deleteLater);
@@ -287,19 +288,27 @@ VALUES
 		QTextCursor c(ui->plainTextEditTopics->textCursor());
 		c.select(QTextCursor::LineUnderCursor);
 		ui->plainTextEditTopics->setTextCursor(c);
-		qDebug() << "topic selected:" << get_selected_topic();
 	});
 	connect(ui->pushButtonListTitlesForTopic, &QPushButton::clicked, [=](void)->void
 	{
 		QString s;
 		int i = 0;
 		ui->plainTextEditTitles->clear();
-			for (const auto & item : database_scanner->database_statistics.titles_by_topic.operator[](QString("%1").arg(get_selected_topic())))
-				s += (item.at(0)), s += '\n', i ++;
+		for (const auto & item : database_scanner->database_statistics.titles_by_topic.operator[](QString("%1").arg(get_selected_topic())))
+			s += (item.at(0)), s += '\n', i ++;
 		ui->plainTextEditTitles->setPlainText(s);
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
 	});
-	populate_topic_list();
+	connect(ui->pushButtonListTitlesWithNoTopic, &QPushButton::clicked, [=](void)->void
+	{
+		QString s;
+		int i = 0;
+		ui->plainTextEditTitles->clear();
+		for (const auto & item : database_scanner->database_statistics.titles_by_topic.operator[](""))
+			s += (item.at(0)), s += '\n', i ++;
+		ui->plainTextEditTitles->setPlainText(s);
+		ui->statusbar->showMessage(QString("%1 items found").arg(i));
+	});
 }
 
 MainWindow::~MainWindow()

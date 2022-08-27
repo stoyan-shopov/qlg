@@ -225,6 +225,7 @@ private:
 			QMessageBox::critical(0, "Bad file size value", "Could not decode file size value in database entry"); return -1;
 		}
 
+		database_statistics.total_byte_size += size;
 		database_statistics.language_counts.operator[](l) ++;
 		database_statistics.language_total_size.operator[](l) += size;
 		database_statistics.titles_by_topic.operator[](scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC))
@@ -254,6 +255,7 @@ public:
 		QMap<QString /* language */, unsigned /* count */> language_counts;
 		QMap<QString /* language */, quint64 /* total size in bytes */> language_total_size;
 		QMap<QString /* topic */, QList<QStringList /* title, md5 hash */>> titles_by_topic;
+		quint64 total_byte_size;
 	}
 	database_statistics;
 signals:
@@ -296,6 +298,7 @@ public slots:
 		timer.start();
 		QString l;
 		QRegularExpression rx_value_insert(".+\\)\\s*VALUES\\s*\\(");
+		database_statistics.total_byte_size = 0;
 		while (1)
 		{
 			if (f.atEnd())
@@ -348,6 +351,8 @@ public slots:
 
 		english_titles.close();
 		russian_titles.close();
+
+		qDebug() << "total library size:" << (((double) database_statistics.total_byte_size) / 1.e12) << "terabytes";
 		emit done();
 	}
 };
@@ -407,5 +412,30 @@ private slots:
 	void database_scanner_thread_done(void)
 	{
 		setEnabled(true);
+		/* Clean up topics with no titles. */
+		QStringList topics = ui->plainTextEditTopics->toPlainText().split('\n');
+		QString filtered_topics;
+		QRegularExpression rx("^(\\d+)");
+		unsigned total_titles = 0;
+		for (const auto & topic : topics)
+		{
+			QRegularExpressionMatch match = rx.match(topic);
+			if (!match.hasMatch())
+				continue;
+			const auto titles = database_scanner->database_statistics.titles_by_topic.find(match.captured(1));
+			if (titles == database_scanner->database_statistics.titles_by_topic.end())
+				continue;
+			filtered_topics += QString("%1 - %2 titles\n").arg(topic).arg(titles->count());
+			total_titles += titles->count();
+		}
+		ui->plainTextEditTopics->setPlainText(filtered_topics);
+		qDebug() << "Total titles with set topic:" << total_titles;
+		qDebug() << "Dump of titles by topic count";
+		auto i = database_scanner->database_statistics.titles_by_topic.constBegin();
+		while (i != database_scanner->database_statistics.titles_by_topic.constEnd())
+		{
+			qDebug() << i.value().count() << "Topic:" << i.key() << "Titles:" << i.value().count();
+			++ i;
+		}
 	}
 };
