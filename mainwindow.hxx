@@ -141,6 +141,8 @@ private:
 	QString database_filename;
 	QFile english_titles;
 	QFile russian_titles;
+	QFile titles_by_id;
+	QFile titles_by_size;
 
 	int scan_number(const QString & data, int offset)
 	{
@@ -210,6 +212,8 @@ private:
 				len ++, offset ++;
 		}
 
+		database_statistics.titles << scanned_database_items;
+
 		if (scanned_database_items.length() != DATABASE_RECORD_COUNT)
 		{
 			QMessageBox::critical(0, "Bad database entry record count", "Unexpected number of database records found in database entry"); return -1;
@@ -245,6 +249,20 @@ private:
 			russian_titles.write(QString("%1::%2\n").arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC)).arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
 		}
 
+		QString id;
+		titles_by_id.write(QString("%1\t%2\t%3\t%4\n")
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE))
+				   .arg((id = scanned_database_items.at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES)).isEmpty() ? "no-identifier" : id)
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::LANGUAGE))
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH)
+								  ).toUtf8()
+				   );
+		titles_by_size.write(QString("%1\t%2\t%3\t%4\n")
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_SIZE))
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_NAME_EXTENSION))
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
+				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
+
 		return len + 1;
 	}
 public:
@@ -256,6 +274,9 @@ public:
 		QMap<QString /* language */, quint64 /* total size in bytes */> language_total_size;
 		QMap<QString /* topic */, QList<QStringList /* title, md5 hash */>> titles_by_topic;
 		quint64 total_byte_size;
+
+		/* This is a list of all titles. All database records have their fields, including numerical fields, stored as lists of strings. */
+		QVector<QStringList> titles;
 	}
 	database_statistics;
 signals:
@@ -288,6 +309,23 @@ public slots:
 		{
 			QString error_message = "Failed to create the output file for russian book titles";
 			QMessageBox::critical(0, "Error creating english output titles file", error_message);
+			emit error(error_message);
+			return;
+		}
+
+		titles_by_id.setFileName("titles-by-id.txt");
+		if (!titles_by_id.open(QFile::WriteOnly))
+		{
+			QString error_message = "Failed to create the output file for titles-by-id";
+			QMessageBox::critical(0, "Error creating titles-by-id output file", error_message);
+			emit error(error_message);
+			return;
+		}
+		titles_by_size.setFileName("titles-by-size.txt");
+		if (!titles_by_size.open(QFile::WriteOnly))
+		{
+			QString error_message = "Failed to create the output file for titles-by-size";
+			QMessageBox::critical(0, "Error creating titles-by-size output file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -351,6 +389,8 @@ public slots:
 
 		english_titles.close();
 		russian_titles.close();
+		titles_by_id.close();
+		titles_by_size.close();
 
 		qDebug() << "total library size:" << (((double) database_statistics.total_byte_size) / 1.e12) << "terabytes";
 		emit done();

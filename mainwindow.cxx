@@ -304,10 +304,28 @@ VALUES
 		QString s;
 		int i = 0;
 		ui->plainTextEditTitles->clear();
-		for (const auto & item : database_scanner->database_statistics.titles_by_topic.operator[](""))
-			s += (item.at(0)), s += '\n', i ++;
+		for (const auto & item : database_scanner->database_statistics.titles)
+			if (item.at(DATABASE_RECORD_INDEX::TOPIC).isEmpty())
+				s += (item.at(DATABASE_RECORD_INDEX::TITLE)), s += '\n', i ++;
 		ui->plainTextEditTitles->setPlainText(s);
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
+	});
+
+	connect(ui->pushButtonFilterLanguages, &QPushButton::clicked, [=](void)->void
+	{
+		QStringList titles;
+		ui->plainTextEditTitles->clear();
+		QStringList languages;
+		languages << "bulgarian" << "russian" << "english" << "";
+		for (const auto & item : database_scanner->database_statistics.titles)
+			if (languages.contains(item.at(DATABASE_RECORD_INDEX::LANGUAGE).toLower()))
+				titles << item.at(DATABASE_RECORD_INDEX::TITLE);
+		qSort(titles);
+		QString s;
+		for (const auto & title: titles)
+			s += title + '\n';
+		ui->plainTextEditTitles->setPlainText(s);
+		ui->statusbar->showMessage(QString("%1 items found").arg(titles.length()));
 	});
 }
 
