@@ -250,7 +250,8 @@ VALUES
 	match = rx.match(s);
 	qDebug() << "match" << (match.hasMatch() ? "":"not") << "found";
 
-	QString database_file = "D:/src/libgen_compact.sql";
+	//QString database_file = "D:/src/libgen_compact.sql";
+	QString database_file = "c:/tmp/libgen_compact.sql";
 
 	populate_topic_list();
 	database_scanner = new DatabaseScanner(database_file);
@@ -261,7 +262,7 @@ VALUES
 	connect(database_scanner, &DatabaseScanner::message, this, &MainWindow::displayMessage);
 	connect(database_scanner, &DatabaseScanner::done, this, &MainWindow::database_scanner_thread_done);
 	setEnabled(false);
-    database_scanner_thread.start();
+	database_scanner_thread.start();
 
 	connect(ui->pushButtonLoadEnglishTitles, &QPushButton::clicked, [=](void)->void
 	{
@@ -339,13 +340,26 @@ VALUES
 				if (flag)
 					total_size += t;
 			}
-        //qSort(titles);
-        std::sort(titles.begin(), titles.end());
+		std::sort(titles.begin(), titles.end());
 		QString s;
 		for (const auto & title: titles)
 			s += title + '\n';
 		ui->plainTextEditTitles->setPlainText(s);
 		ui->statusbar->showMessage(QString("%1 items found. Total size: %2 terabytes").arg(titles.length()).arg((double) total_size / 1000000000000));
+	});
+
+	connect(ui->pushButtonScanLanguages, &QPushButton::clicked, [=](void)->void
+	{
+		QMap<QString /* language */, int /* count */> languages;
+		for (const auto & item : database_scanner->database_statistics.titles)
+			languages.operator[]((item.at(DATABASE_RECORD_INDEX::LANGUAGE)).toLower()) ++;
+		ui->plainTextEditLanguages->clear();
+		QMap<QString, int>::const_iterator i = languages.constBegin();
+		while (i != languages.constEnd()) {
+			ui->plainTextEditLanguages->appendPlainText(QString("%1\t%2").arg(i.key()).arg(i.value()));
+			i ++;
+		}
+		ui->plainTextEditLanguages->moveCursor(QTextCursor::Start);
 	});
 }
 

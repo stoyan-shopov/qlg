@@ -212,8 +212,6 @@ private:
 				len ++, offset ++;
 		}
 
-		database_statistics.titles << scanned_database_items;
-
 		if (scanned_database_items.length() != DATABASE_RECORD_COUNT)
 		{
 			QMessageBox::critical(0, "Bad database entry record count", "Unexpected number of database records found in database entry"); return -1;
@@ -232,6 +230,7 @@ private:
 		database_statistics.total_byte_size += size;
 		database_statistics.language_counts.operator[](l) ++;
 		database_statistics.language_total_size.operator[](l) += size;
+#if 0
 		database_statistics.titles_by_topic.operator[](scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC))
 				<< (QStringList() << scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE) << scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH));
 		if (l == "english")
@@ -262,7 +261,8 @@ private:
 				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_NAME_EXTENSION))
 				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
 				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
-
+#endif
+		database_statistics.titles << std::move(scanned_database_items);
 		return len + 1;
 	}
 public:
@@ -332,17 +332,23 @@ public slots:
 
 		int line = 0;
 		int records = 0;
-        QElapsedTimer timer;
+		QElapsedTimer timer, total_timer;
 		timer.start();
+		total_timer.start();
 		QString l;
 		QRegularExpression rx_value_insert(".+\\)\\s*VALUES\\s*\\(");
 		database_statistics.total_byte_size = 0;
-		while (1)
+		auto data = f.readAll();
+		emit message(QString("Reading the database took %1 milliseconds.").arg(timer.elapsed()));
+		timer.restart();
+		auto lines = data.split('\n');
+		emit message(QString("Splitting the database contents into lines took %1 milliseconds.").arg(timer.elapsed()));
+		timer.restart();
+		for (const auto & lineData : lines)
 		{
-			if (f.atEnd())
-				break;
+			l = lineData;
 			line ++;
-			if (!(l = f.readLine()).length())
+			if (!l.length())
 				continue;
 			if (!l.startsWith("INSERT INTO `updated`"))
 				continue;
@@ -393,6 +399,7 @@ public slots:
 		titles_by_size.close();
 
 		qDebug() << "total library size:" << (((double) database_statistics.total_byte_size) / 1.e12) << "terabytes";
+		emit message(QString("Total database processing time: %1 milliseconds.").arg(total_timer.elapsed()));
 		emit done();
 	}
 };
@@ -421,6 +428,8 @@ private:
 		}
 		return topic;
 	}
+
+	//void scrollToTop
 
 	void populate_topic_list(void)
 	{

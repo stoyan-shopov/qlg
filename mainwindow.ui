@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1028</width>
+    <width>1185</width>
     <height>721</height>
    </rect>
   </property>
@@ -18,7 +18,7 @@
 </string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,1">
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
@@ -73,19 +73,51 @@
      </layout>
     </item>
     <item>
-     <widget class="QSplitter" name="splitter">
+     <widget class="QSplitter" name="splitter_2">
       <property name="orientation">
-       <enum>Qt::Vertical</enum>
+       <enum>Qt::Horizontal</enum>
       </property>
-      <widget class="QPlainTextEdit" name="plainTextEditTitles">
-       <property name="readOnly">
-        <bool>true</bool>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
+      </property>
+      <widget class="QSplitter" name="splitter">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
        </property>
+       <property name="childrenCollapsible">
+        <bool>false</bool>
+       </property>
+       <widget class="QPlainTextEdit" name="plainTextEditTitles">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QPlainTextEdit" name="plainTextEditTopics">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
       </widget>
-      <widget class="QPlainTextEdit" name="plainTextEditTopics">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
+      <widget class="QWidget" name="layoutWidget">
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <widget class="QLabel" name="label">
+          <property name="text">
+           <string>Languages</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButtonScanLanguages">
+          <property name="text">
+           <string>Scan languages</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPlainTextEdit" name="plainTextEditLanguages"/>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
@@ -96,7 +128,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1028</width>
+     <width>1185</width>
      <height>21</height>
     </rect>
    </property>
