@@ -261,7 +261,7 @@ VALUES
 	connect(database_scanner, &DatabaseScanner::message, this, &MainWindow::displayMessage);
 	connect(database_scanner, &DatabaseScanner::done, this, &MainWindow::database_scanner_thread_done);
 	setEnabled(false);
-	database_scanner_thread.start();
+    database_scanner_thread.start();
 
 	connect(ui->pushButtonLoadEnglishTitles, &QPushButton::clicked, [=](void)->void
 	{
@@ -311,21 +311,41 @@ VALUES
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
 	});
 
+	connect(ui->pushButtonDumpMd5Hashes, &QPushButton::clicked, [=](void)->void
+	{
+		QFile f("libgen-md5-hashes.txt");
+		if (!f.open(QFile::WriteOnly))
+		{
+			QMessageBox::critical(0, "Error opening md5 hashes output file", "Failed to open md5 hashes output file for writing");
+			return;
+		}
+		for (const auto & item : database_scanner->database_statistics.titles)
+			f.write((item.at(DATABASE_RECORD_INDEX::MD5_HASH) + '\n').toLocal8Bit());
+	});
+
 	connect(ui->pushButtonFilterLanguages, &QPushButton::clicked, [=](void)->void
 	{
 		QStringList titles;
 		ui->plainTextEditTitles->clear();
 		QStringList languages;
 		languages << "bulgarian" << "russian" << "english" << "";
+		uint64_t total_size = 0;
 		for (const auto & item : database_scanner->database_statistics.titles)
 			if (languages.contains(item.at(DATABASE_RECORD_INDEX::LANGUAGE).toLower()))
-				titles << item.at(DATABASE_RECORD_INDEX::TITLE);
-		qSort(titles);
+			{
+				titles << item.at(DATABASE_RECORD_INDEX::TITLE) + "\t\"\"\"" + item.at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES);
+				bool flag = false;
+				uint t = item.at(DATABASE_RECORD_INDEX::FILE_SIZE).toUInt(& flag);
+				if (flag)
+					total_size += t;
+			}
+        //qSort(titles);
+        std::sort(titles.begin(), titles.end());
 		QString s;
 		for (const auto & title: titles)
 			s += title + '\n';
 		ui->plainTextEditTitles->setPlainText(s);
-		ui->statusbar->showMessage(QString("%1 items found").arg(titles.length()));
+		ui->statusbar->showMessage(QString("%1 items found. Total size: %2 terabytes").arg(titles.length()).arg((double) total_size / 1000000000000));
 	});
 }
 

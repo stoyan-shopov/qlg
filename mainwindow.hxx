@@ -7,7 +7,7 @@
 #include <QRegularExpression>
 #include <QTextCursor>
 #include <QThread>
-#include <QTime>
+#include <QElapsedTimer>
 
 #include <QDebug>
 #include "ui_mainwindow.h"
@@ -291,7 +291,7 @@ public slots:
 		if (!f.open(QFile::ReadOnly))
 		{
 			QString error_message = "Can not open database file\n" + f.fileName();
-			QMessageBox::critical(0, "Error opening database", error_message);
+            //QMessageBox::critical(0, "Error opening database", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -300,7 +300,7 @@ public slots:
 		if (!english_titles.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for english book titles";
-			QMessageBox::critical(0, "Error creating english output titles file", error_message);
+            //QMessageBox::critical(0, "Error creating english output titles file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -308,7 +308,7 @@ public slots:
 		if (!russian_titles.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for russian book titles";
-			QMessageBox::critical(0, "Error creating english output titles file", error_message);
+            //QMessageBox::critical(0, "Error creating english output titles file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -317,7 +317,7 @@ public slots:
 		if (!titles_by_id.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for titles-by-id";
-			QMessageBox::critical(0, "Error creating titles-by-id output file", error_message);
+            //QMessageBox::critical(0, "Error creating titles-by-id output file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -325,14 +325,14 @@ public slots:
 		if (!titles_by_size.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for titles-by-size";
-			QMessageBox::critical(0, "Error creating titles-by-size output file", error_message);
+            //QMessageBox::critical(0, "Error creating titles-by-size output file", error_message);
 			emit error(error_message);
 			return;
 		}
 
 		int line = 0;
 		int records = 0;
-		QTime timer;
+        QElapsedTimer timer;
 		timer.start();
 		QString l;
 		QRegularExpression rx_value_insert(".+\\)\\s*VALUES\\s*\\(");
@@ -356,7 +356,7 @@ public slots:
 						int t = scan_database_record(l, index);
 						if (t == -1)
 						{
-							QMessageBox::critical(0, "Error parsing database record", "Failed to parse database record");
+                            //QMessageBox::critical(0, "Error parsing database record", "Failed to parse database record");
 							break;
 						}
 						records ++;

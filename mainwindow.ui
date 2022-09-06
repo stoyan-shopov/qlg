@@ -14,10 +14,8 @@
    <string>MainWindow</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">QPlainTextEdit
-{
-	font-family: &quot;Fixedsys&quot;
-}</string>
+   <string notr="true">font-family: &quot;Fixedsys&quot;;
+</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -55,6 +53,13 @@
        <widget class="QPushButton" name="pushButtonFilterLanguages">
         <property name="text">
          <string>Filter languages</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonDumpMd5Hashes">
+        <property name="text">
+         <string>Dump md5 hashes</string>
         </property>
        </widget>
       </item>
