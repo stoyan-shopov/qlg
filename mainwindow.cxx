@@ -355,10 +355,12 @@ VALUES
 			languages.operator[]((item.at(DATABASE_RECORD_INDEX::LANGUAGE)).toLower()) ++;
 		ui->plainTextEditLanguages->clear();
 		QMap<QString, int>::const_iterator i = languages.constBegin();
+		QString s;
 		while (i != languages.constEnd()) {
-			ui->plainTextEditLanguages->appendPlainText(QString("%1\t%2").arg(i.key()).arg(i.value()));
+			s += QString("%1\t%2\n").arg(i.key()).arg(i.value());
 			i ++;
 		}
+		ui->plainTextEditLanguages->setPlainText(s);
 		ui->plainTextEditLanguages->moveCursor(QTextCursor::Start);
 	});
 }

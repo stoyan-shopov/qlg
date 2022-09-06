@@ -445,9 +445,7 @@ private:
 			if (match.hasMatch())
 				ui->plainTextEditTopics->appendPlainText(QString("%1::%2").arg(match.captured(1)).arg(match.captured(2)));
 		}
-		QTextCursor c(ui->plainTextEditTopics->textCursor());
-		c.movePosition(QTextCursor::Start);
-		ui->plainTextEditTopics->setTextCursor(c);
+		ui->plainTextEditTopics->moveCursor(QTextCursor::Start);
 	}
 private slots:
 	void displayErrorMessage(const QString & error_message)
