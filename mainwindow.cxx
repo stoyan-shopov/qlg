@@ -363,6 +363,11 @@ VALUES
 		ui->plainTextEditLanguages->setPlainText(s);
 		ui->plainTextEditLanguages->moveCursor(QTextCursor::Start);
 	});
+	connect(ui->lineEditSearchTitles, &QLineEdit::returnPressed, [=](void)->void
+	{
+		ui->plainTextEditTitles->clear();
+		ui->plainTextEditTitles->setPlainText("<<<search here>>>");
+	});
 }
 
 MainWindow::~MainWindow()

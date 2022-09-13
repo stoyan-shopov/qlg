@@ -20,6 +20,8 @@ enum
 {
 	/* Expected number of records in the database entry. */
 	DATABASE_RECORD_COUNT		= 47,
+	/* Number of threads used for scanning the database. */
+	NR_DATABASE_SCANNER_THREADS	= 2,
 };
 enum DATABASE_RECORD_INDEX
 {
@@ -134,6 +136,135 @@ database_items[DATABASE_RECORD_COUNT] =
 
 
 #if 1
+
+class DatabaseScannerWorker : public QThread
+{
+	Q_OBJECT
+private:
+
+	const QList<QByteArray> & lines;
+	const int start_line, line_stride;
+
+	int scan_number(const QString & data, int offset)
+	{
+		int len = 0;
+		while (offset < data.length() && data.at(offset).isDigit())
+			len ++, offset ++;
+		if (!len)
+			return -1;
+		return len;
+	}
+	int scan_string(const QString & data, int offset)
+	{
+		int len = 0;
+		if (offset < data.length() && data.at(offset) != '\'')
+			return -1;
+		len ++, offset ++;
+		while (offset < data.length() && data.at(offset) != '\'')
+		{
+			/* handle escaped characters */
+			if (data.at(offset) == '\\')
+			{
+				len ++, offset ++;
+				if (offset == data.length())
+					return -1;
+			}
+			len ++, offset ++;
+		}
+		if (offset < data.length() && data.at(offset) == '\'')
+			return len + 1;
+		return -1;
+	}
+
+	int scan_database_record(const QString & data, int offset) {
+		int len = 0;
+		if (offset < data.length() && data.at(offset) != '\(')
+			return -1;
+		len ++, offset ++;
+		int t;
+		QStringList scanned_database_items;
+		for (const auto & item : database_items)
+		{
+			switch (item.type)
+			{
+				default: QMessageBox::critical(0, "Unknown database item type", "Database item type unrecognized; aborting"); return -1;
+				case database_item::NUMBER:
+					t = scan_number(data, offset);
+					if (t == -1)
+					{
+						emit error("Unrecognized database record: " + data.mid(offset - len, 100));
+						QMessageBox::critical(0, "Error scanning a number item", "Expected a number item, but the scan fails; aborting"); return -1;
+					}
+					scanned_database_items << data.mid(offset, t);
+				break;
+				case database_item::STRING:
+					t = scan_string(data, offset);
+					if (t == -1)
+					{
+						emit error("Unrecognized database record: " + data.mid(offset - len, 100));
+						QMessageBox::critical(0, "Error scanning a string item", "Expected a string item, but the scan fails; aborting"); return -1;
+					}
+					scanned_database_items << data.mid(offset + 1, t - 2);
+				break;
+			}
+			len += t, offset += t;
+			/* HACK */
+			if (offset < data.length() && data.at(offset) == ',')
+				len ++, offset ++;
+		}
+
+		if (scanned_database_items.length() != DATABASE_RECORD_COUNT)
+		{
+			QMessageBox::critical(0, "Bad database entry record count", "Unexpected number of database records found in database entry"); return -1;
+		}
+		if (offset < data.length() && data.at(offset) != ')')
+			return -1;
+
+		QString l(scanned_database_items.at(DATABASE_RECORD_INDEX::LANGUAGE).toLower());
+		titles << std::move(scanned_database_items);
+		return len + 1;
+	}
+public:
+	/* This is a list of all titles. All database records have their fields, including numerical fields, stored as lists of strings. */
+	QVector<QStringList> titles;
+	DatabaseScannerWorker(const QList<QByteArray> & lines, const int start_line, const int line_stride) : lines(lines), start_line(start_line), line_stride(line_stride) {}
+	void run(void) override
+	{
+		int line_nr;
+		int records = 0;
+		QRegularExpression rx_value_insert(".+\\)\\s*VALUES\\s*\\(");
+		for (line_nr = start_line; line_nr < lines.length(); line_nr += line_stride)
+		{
+			QString l = lines.at(line_nr);
+			if (!l.length())
+				continue;
+			if (!l.startsWith("INSERT INTO `updated`"))
+				continue;
+			QRegularExpressionMatch match = rx_value_insert.match(l);
+			if (match.hasMatch())
+			{
+				int index = match.capturedEnd() - /* get back to the opening parenthesis */ 1;
+				while (index < l.length()){
+					if (l.at(index) == '(')
+					{
+						int t = scan_database_record(l, index);
+						if (t == -1)
+						{
+							break;
+						}
+						records ++;
+						index += t;
+					}
+					else
+						index ++;
+				}
+			}
+		}
+	}
+signals:
+	void error(const QString error_message);
+};
+
 class DatabaseScanner : public QObject
 {
 	Q_OBJECT
@@ -143,6 +274,8 @@ private:
 	QFile russian_titles;
 	QFile titles_by_id;
 	QFile titles_by_size;
+
+	QList<QByteArray> lines;
 
 	int scan_number(const QString & data, int offset)
 	{
@@ -230,38 +363,6 @@ private:
 		database_statistics.total_byte_size += size;
 		database_statistics.language_counts.operator[](l) ++;
 		database_statistics.language_total_size.operator[](l) += size;
-#if 0
-		database_statistics.titles_by_topic.operator[](scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC))
-				<< (QStringList() << scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE) << scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH));
-		if (l == "english")
-		{
-			QString topic = scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC);
-			if (topic.isEmpty())
-				topic = "<unspecified topic>";
-			english_titles.write(QString("%1::%2::%3\n")
-				.arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
-				.arg(topic)
-				.arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
-		}
-		else if (l == "russian")
-		{
-			russian_titles.write(QString("%1::%2\n").arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC)).arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
-		}
-
-		QString id;
-		titles_by_id.write(QString("%1\t%2\t%3\t%4\n")
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE))
-				   .arg((id = scanned_database_items.at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES)).isEmpty() ? "no-identifier" : id)
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::LANGUAGE))
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH)
-								  ).toUtf8()
-				   );
-		titles_by_size.write(QString("%1\t%2\t%3\t%4\n")
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_SIZE))
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_NAME_EXTENSION))
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
-				   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
-#endif
 		database_statistics.titles << std::move(scanned_database_items);
 		return len + 1;
 	}
@@ -284,7 +385,7 @@ signals:
 	void message(const QString message);
 	void done(void);
 public slots:
-	void scan(void)
+	void scan_original(void)
 	{
 		QFile f;
 		f.setFileName(database_filename);
@@ -338,10 +439,10 @@ public slots:
 		QString l;
 		QRegularExpression rx_value_insert(".+\\)\\s*VALUES\\s*\\(");
 		database_statistics.total_byte_size = 0;
-		auto data = f.readAll();
+		QByteArray data = f.readAll();
 		emit message(QString("Reading the database took %1 milliseconds.").arg(timer.elapsed()));
 		timer.restart();
-		auto lines = data.split('\n');
+		lines = data.split('\n');
 		emit message(QString("Splitting the database contents into lines took %1 milliseconds.").arg(timer.elapsed()));
 		timer.restart();
 		for (const auto & lineData : lines)
@@ -399,6 +500,140 @@ public slots:
 		titles_by_size.close();
 
 		qDebug() << "total library size:" << (((double) database_statistics.total_byte_size) / 1.e12) << "terabytes";
+		emit message(QString("Total database processing time: %1 milliseconds.").arg(total_timer.elapsed()));
+		emit done();
+	}
+
+	void scan(void)
+	{
+		QFile f;
+		f.setFileName(database_filename);
+		if (!f.open(QFile::ReadOnly))
+		{
+			QString error_message = "Can not open database file\n" + f.fileName();
+			emit error(error_message);
+			return;
+		}
+
+		english_titles.setFileName("english-titles.txt");
+		if (!english_titles.open(QFile::WriteOnly))
+		{
+			QString error_message = "Failed to create the output file for english book titles";
+			emit error(error_message);
+			return;
+		}
+		russian_titles.setFileName("russian-titles.txt");
+		if (!russian_titles.open(QFile::WriteOnly))
+		{
+			QString error_message = "Failed to create the output file for russian book titles";
+			emit error(error_message);
+			return;
+		}
+
+		titles_by_id.setFileName("titles-by-id.txt");
+		if (!titles_by_id.open(QFile::WriteOnly))
+		{
+			QString error_message = "Failed to create the output file for titles-by-id";
+			emit error(error_message);
+			return;
+		}
+		titles_by_size.setFileName("titles-by-size.txt");
+		if (!titles_by_size.open(QFile::WriteOnly))
+		{
+			QString error_message = "Failed to create the output file for titles-by-size";
+			emit error(error_message);
+			return;
+		}
+
+		QElapsedTimer timer, total_timer;
+		total_timer.start();
+		timer.start();
+		database_statistics.total_byte_size = 0;
+		QByteArray data = f.readAll();
+		emit message(QString("Reading the database took %1 milliseconds.").arg(timer.elapsed()));
+		timer.restart();
+		lines = data.split('\n');
+		emit message(QString("Splitting the database contents into lines took %1 milliseconds.").arg(timer.elapsed()));
+
+		DatabaseScannerWorker * scanners[NR_DATABASE_SCANNER_THREADS];
+		for (int i = 0; i < NR_DATABASE_SCANNER_THREADS; i ++)
+			(scanners[i] = new DatabaseScannerWorker(lines, i, NR_DATABASE_SCANNER_THREADS))->start();
+
+		emit message(QString("Deploying %1 database scanner threads. Wait...").arg(NR_DATABASE_SCANNER_THREADS));
+		for (const auto & scanner : scanners)
+			scanner->wait();
+
+		emit message(QString("Database scanning complete. Scanning the database took %1 milliseconds.").arg(timer.elapsed()));
+		timer.restart();
+		emit message("Merging data from the database scanning threads...");
+		for (const auto & scanner : scanners)
+		{
+			while (scanner->titles.length())
+			{
+				const QStringList & scanned_database_items = scanner->titles.front();
+				QString l(scanned_database_items.at(DATABASE_RECORD_INDEX::LANGUAGE).toLower());
+				bool flag;
+				unsigned size = scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_SIZE).toUInt(& flag);
+				if (!flag)
+				{
+					emit error(QString("Could not parse database entry file size string [%1] as a number.")
+						   .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_SIZE)));
+					return;
+				}
+
+				database_statistics.total_byte_size += size;
+				database_statistics.language_counts.operator[](l) ++;
+				database_statistics.language_total_size.operator[](l) += size;
+				database_statistics.titles << std::move(scanned_database_items);
+
+				database_statistics.titles_by_topic.operator[](scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC))
+						<< (QStringList() << scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE) << scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH));
+				scanner->titles.pop_front();
+			}
+		}
+
+#if 0
+	       database_statistics.titles_by_topic.operator[](scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC))
+			       << (QStringList() << scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE) << scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH));
+	       if (l == "english")
+	       {
+		       QString topic = scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC);
+		       if (topic.isEmpty())
+			       topic = "<unspecified topic>";
+		       english_titles.write(QString("%1::%2::%3\n")
+			       .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
+			       .arg(topic)
+			       .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
+	       }
+	       else if (l == "russian")
+	       {
+		       russian_titles.write(QString("%1::%2\n").arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TOPIC)).arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
+	       }
+
+	       QString id;
+	       titles_by_id.write(QString("%1\t%2\t%3\t%4\n")
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE))
+				  .arg((id = scanned_database_items.at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES)).isEmpty() ? "no-identifier" : id)
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::LANGUAGE))
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH)
+								 ).toUtf8()
+				  );
+	       titles_by_size.write(QString("%1\t%2\t%3\t%4\n")
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_SIZE))
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::FILE_NAME_EXTENSION))
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::MD5_HASH))
+				  .arg(scanned_database_items.at(DATABASE_RECORD_INDEX::TITLE)).toUtf8());
+#endif
+
+
+		for (auto & scanner : scanners)
+			delete scanner;
+		emit message(QString("Merging data from the database scanning threadse took %1 milliseconds.").arg(timer.elapsed()));
+
+		emit message(QString("Total number of titles: %1. Total library size: %2 terabytes")
+			     .arg(database_statistics.titles.count())
+			     .arg(((double) database_statistics.total_byte_size) / 1.e12));
+
 		emit message(QString("Total database processing time: %1 milliseconds.").arg(total_timer.elapsed()));
 		emit done();
 	}
