@@ -306,8 +306,8 @@ VALUES
 		int i = 0;
 		ui->plainTextEditTitles->clear();
 		for (const auto & item : database_scanner->database_statistics.titles)
-			if (item.at(DATABASE_RECORD_INDEX::TOPIC).isEmpty())
-				s += (item.at(DATABASE_RECORD_INDEX::TITLE)), s += '\n', i ++;
+			if ((* item).at(DATABASE_RECORD_INDEX::TOPIC).isEmpty())
+				s += ((* item).at(DATABASE_RECORD_INDEX::TITLE)), s += '\n', i ++;
 		ui->plainTextEditTitles->setPlainText(s);
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
 	});
@@ -321,7 +321,7 @@ VALUES
 			return;
 		}
 		for (const auto & item : database_scanner->database_statistics.titles)
-			f.write((item.at(DATABASE_RECORD_INDEX::MD5_HASH) + '\n').toLocal8Bit());
+			f.write(((* item).at(DATABASE_RECORD_INDEX::MD5_HASH) + '\n').toLocal8Bit());
 	});
 
 	connect(ui->pushButtonFilterLanguages, &QPushButton::clicked, [=](void)->void
@@ -332,11 +332,11 @@ VALUES
 		languages << "bulgarian" << "russian" << "english" << "";
 		uint64_t total_size = 0;
 		for (const auto & item : database_scanner->database_statistics.titles)
-			if (languages.contains(item.at(DATABASE_RECORD_INDEX::LANGUAGE).toLower()))
+			if (languages.contains(( *item).at(DATABASE_RECORD_INDEX::LANGUAGE).toLower()))
 			{
-				titles << item.at(DATABASE_RECORD_INDEX::TITLE) + "\t\"\"\"" + item.at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES);
+				titles << (* item).at(DATABASE_RECORD_INDEX::TITLE) + "\t\"\"\"" + (* item).at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES);
 				bool flag = false;
-				uint t = item.at(DATABASE_RECORD_INDEX::FILE_SIZE).toUInt(& flag);
+				uint t = (* item).at(DATABASE_RECORD_INDEX::FILE_SIZE).toUInt(& flag);
 				if (flag)
 					total_size += t;
 			}
@@ -352,7 +352,7 @@ VALUES
 	{
 		QMap<QString /* language */, int /* count */> languages;
 		for (const auto & item : database_scanner->database_statistics.titles)
-			languages.operator[]((item.at(DATABASE_RECORD_INDEX::LANGUAGE)).toLower()) ++;
+			languages.operator[](((* item).at(DATABASE_RECORD_INDEX::LANGUAGE)).toLower()) ++;
 		ui->plainTextEditLanguages->clear();
 		QMap<QString, int>::const_iterator i = languages.constBegin();
 		QString s;
