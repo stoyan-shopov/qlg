@@ -183,7 +183,7 @@ private:
 			return -1;
 		len ++, offset ++;
 		int t;
-		QSharedPointer<QStringList> scanned_database_items = QSharedPointer<QStringList>(new QStringList);
+		QSharedPointer<QStringList> scanned_database_items(new QStringList);
 		for (const auto & item : database_items)
 		{
 			switch (item.type)
@@ -276,6 +276,8 @@ private:
 	QFile titles_by_id;
 	QFile titles_by_size;
 
+	QString * empty_string = new QString();
+
 	int scan_number(const QString & data, int offset)
 	{
 		int len = 0;
@@ -313,9 +315,11 @@ private:
 			return -1;
 		len ++, offset ++;
 		int t;
-		QSharedPointer<QStringList> scanned_database_items(new QStringList());
+		QSharedPointer<QList<QString *>> scanned_database_items(new QList<QString *>(DATABASE_RECORD_COUNT));
+		int record_index = 0;
 		for (const auto & item : database_items)
 		{
+			int start, xlen;
 			switch (item.type)
 			{
 				default: QMessageBox::critical(0, "Unknown database item type", "Database item type unrecognized; aborting"); return -1;
@@ -323,15 +327,26 @@ private:
 					t = scan_number(data, offset);
 					if (t == -1)
 						return -1;
-					* scanned_database_items << data.mid(offset, t);
+					start = offset, xlen = t;
 				break;
 				case database_item::STRING:
 					t = scan_string(data, offset);
 					if (t == -1)
 						return -1;
-					* scanned_database_items << data.mid(offset + 1, t - 2);
+					start = offset + 1, xlen = t - 2;
 				break;
 			}
+			if (!xlen)
+			{
+				database_statistics.total_empty_records ++;
+				scanned_database_items->operator[](record_index) = empty_string;
+			}
+			else
+			{
+				scanned_database_items->operator[](record_index) = new QString(data.mid(start, xlen));
+			}
+			record_index ++;
+			database_statistics.total_records ++;
 			len += t, offset += t;
 			/* HACK */
 			if (offset < data.length() && data.at(offset) == ',')
@@ -345,9 +360,9 @@ private:
 		if (offset < data.length() && data.at(offset) != ')')
 			return -1;
 
-		QString l(scanned_database_items->at(DATABASE_RECORD_INDEX::LANGUAGE).toLower());
+		QString l(scanned_database_items->at(DATABASE_RECORD_INDEX::LANGUAGE)->toLower());
 		bool flag;
-		unsigned size = scanned_database_items->at(DATABASE_RECORD_INDEX::FILE_SIZE).toUInt(& flag);
+		unsigned size = scanned_database_items->at(DATABASE_RECORD_INDEX::FILE_SIZE)->toUInt(& flag);
 		if (!flag)
 		{
 			QMessageBox::critical(0, "Bad file size value", "Could not decode file size value in database entry"); return -1;
@@ -356,8 +371,10 @@ private:
 		database_statistics.total_byte_size += size;
 		database_statistics.language_counts.operator[](l) ++;
 		database_statistics.language_total_size.operator[](l) += size;
+#if 0
 		database_statistics.titles_by_topic.operator[]((* scanned_database_items).at(DATABASE_RECORD_INDEX::TOPIC))
 				<< (QStringList() << (* scanned_database_items).at(DATABASE_RECORD_INDEX::TITLE) << (* scanned_database_items).at(DATABASE_RECORD_INDEX::MD5_HASH));
+#endif
 		database_statistics.titles << scanned_database_items;
 		return len + 1;
 	}
@@ -370,9 +387,11 @@ public:
 		QMap<QString /* language */, quint64 /* total size in bytes */> language_total_size;
 		QMap<QString /* topic */, QList<QStringList /* title, md5 hash */>> titles_by_topic;
 		quint64 total_byte_size;
+		quint64 total_empty_records = 0;
+		quint64 total_records = 0;
 
 		/* This is a list of all titles. All database records have their fields, including numerical fields, stored as lists of strings. */
-		QVector<QSharedPointer<QStringList>> titles;
+		QVector<QSharedPointer<QList<QString *>>> titles;
 	}
 	database_statistics;
 signals:
@@ -380,14 +399,13 @@ signals:
 	void message(const QString message);
 	void done(void);
 public slots:
-	void scan_original(void)
+	void scan(void)
 	{
 		QFile f;
 		f.setFileName(database_filename);
 		if (!f.open(QFile::ReadOnly))
 		{
 			QString error_message = "Can not open database file\n" + f.fileName();
-            //QMessageBox::critical(0, "Error opening database", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -396,7 +414,6 @@ public slots:
 		if (!english_titles.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for english book titles";
-            //QMessageBox::critical(0, "Error creating english output titles file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -404,7 +421,6 @@ public slots:
 		if (!russian_titles.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for russian book titles";
-            //QMessageBox::critical(0, "Error creating english output titles file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -413,7 +429,6 @@ public slots:
 		if (!titles_by_id.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for titles-by-id";
-            //QMessageBox::critical(0, "Error creating titles-by-id output file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -421,7 +436,6 @@ public slots:
 		if (!titles_by_size.open(QFile::WriteOnly))
 		{
 			QString error_message = "Failed to create the output file for titles-by-size";
-            //QMessageBox::critical(0, "Error creating titles-by-size output file", error_message);
 			emit error(error_message);
 			return;
 		}
@@ -444,9 +458,10 @@ public slots:
 		}
 		emit message(QString("Splitting the database contents into lines took %1 milliseconds.").arg(timer.elapsed()));
 		timer.restart();
-		for (const auto & lineData : lines)
+		while (lines.length())
 		{
-			l = lineData;
+			l = lines.front();
+			lines.pop_front();
 			line ++;
 			if (!l.length())
 				continue;
@@ -461,10 +476,7 @@ public slots:
 					{
 						int t = scan_database_record(l, index);
 						if (t == -1)
-						{
-                            //QMessageBox::critical(0, "Error parsing database record", "Failed to parse database record");
 							break;
-						}
 						records ++;
 						index += t;
 					}
@@ -499,6 +511,7 @@ public slots:
 		titles_by_size.close();
 
 		qDebug() << "total library size:" << (((double) database_statistics.total_byte_size) / 1.e12) << "terabytes";
+		emit message(QString("Percentage of empty records: %1").arg(((double) database_statistics.total_empty_records / database_statistics.total_records) * 100));
 		emit message(QString("Total database processing time: %1 milliseconds.").arg(total_timer.elapsed()));
 		emit done();
 	}
@@ -655,7 +668,8 @@ public slots:
 		emit done();
 	}
 
-	void scan(void)
+#if 0
+	void scan_multithreaded(void)
 	{
 		QFile f;
 		f.setFileName(database_filename);
@@ -796,6 +810,7 @@ public slots:
 		emit message(QString("Total database processing time: %1 milliseconds.").arg(total_timer.elapsed()));
 		emit done();
 	}
+#endif
 };
 #endif
 
