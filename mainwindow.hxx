@@ -425,7 +425,7 @@ private:
 			return -1;
 		len ++, offset ++;
 		int t;
-		QSharedPointer<QList<const QString *>> scanned_database_items(new QList<const QString *>(DATABASE_RECORD_COUNT));
+		//QSharedPointer<QList<const QString *>> scanned_database_items(new QList<const QString *>(DATABASE_RECORD_COUNT));
 #if 1
 		struct database_entry * record = new database_entry;
 #endif
@@ -469,7 +469,7 @@ private:
 			if (!xlen)
 			{
 				database_statistics.total_empty_records ++;
-				scanned_database_items->operator[](record_index) = empty_string;
+				//scanned_database_items->operator[](record_index) = empty_string;
 
 				if (item.type == database_item::STRING)
 					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = empty_string;
@@ -482,14 +482,14 @@ private:
 					auto i = shared_string_cache.find(s);
 					if (i == shared_string_cache.end())
 						i = shared_string_cache.insert(s, new QString(s));
-					scanned_database_items->operator[](record_index) = * i.operator->();
+					//scanned_database_items->operator[](record_index) = * i.operator->();
 					if (item.type == database_item::STRING)
 						* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = * i.operator->();
 				}
 				else
 				{
-					QString * s;
-					scanned_database_items->operator[](record_index) = (s = new QString(data.mid(start, xlen)));
+					QString * s = new QString(data.mid(start, xlen));
+					//scanned_database_items->operator[](record_index) = s;
 					if (item.type == database_item::STRING)
 						* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = s;
 				}
@@ -502,10 +502,6 @@ private:
 				len ++, offset ++;
 		}
 
-		if (scanned_database_items->length() != DATABASE_RECORD_COUNT)
-		{
-			QMessageBox::critical(0, "Bad database entry record count", "Unexpected number of database records found in database entry"); return -1;
-		}
 		if (offset < data.length() && data.at(offset) != ')')
 			return -1;
 
