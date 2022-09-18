@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QMap>
+#include <QHash>
 #include <QFile>
 #include <QRegularExpression>
 #include <QTextCursor>
@@ -23,6 +24,8 @@ enum
 	DATABASE_RECORD_COUNT		= 47,
 	/* Number of threads used for scanning the database. */
 	NR_DATABASE_SCANNER_THREADS	= 2,
+	/* Strings of length under this limit are placed in a map, and looked up there, in an attempt to save some space. */
+	SHARED_STRING_LIMIT_LENGTH	= 8,
 };
 enum DATABASE_RECORD_INDEX
 {
@@ -134,6 +137,113 @@ database_items[DATABASE_RECORD_COUNT] =
 	{ .type = database_item::STRING, }, //"'([^']*)',"	/* tags */
 	{ .type = database_item::STRING, }, //"'([^']*)'"	/* identifier without dashes */
 };
+
+struct database_entry
+{
+	unsigned		id;
+	QString *		title;
+	QString *		volume_info;
+	QString *		series;
+	QString *		periodical;
+	QString *		author;
+	QString *		year;
+	QString *		edition;
+	QString *		publisher;
+	QString *		city;
+	QString *		pages;
+	unsigned		pages_in_file;
+	QString *		language;
+	QString *		topic;
+	QString *		library;
+	QString *		issue;
+	QString *		identifier;
+	QString *		issn;
+	QString *		asin;
+	QString *		udc;
+	QString *		lbc;
+	QString *		ddc;
+	QString *		lcc;
+	QString *		doi;
+	QString *		google_book_id;
+	QString *		open_library_id;
+	QString *		commentary;
+	unsigned		dpi;
+	QString *		color;
+	QString *		cleaned;
+	QString *		orientation;
+	QString *		paginated;
+	QString *		scanned;
+	QString *		bookmarked;
+	QString *		searchable;
+	uint64_t		file_size;
+	QString *		file_name_extension;
+	QString *		md5_hash;
+	QString *		generic;
+	QString *		visible;
+	QString *		locator;
+	unsigned		local;
+	QString *		time_added;
+	QString *		time_last_modified;
+	QString *		cover_url;
+	QString *		tags;
+	QString *		identifier_without_dashes;
+};
+
+const struct
+{
+	/* I could not make this work... I was forced to use an `uint64_t` type instead of a plain 'unsigned'... */
+	uint64_t offsets[DATABASE_RECORD_COUNT] =
+	{
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->id)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->title)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->volume_info)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->series)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->periodical)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->author)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->year)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->edition)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->publisher)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->city)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->pages)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->pages_in_file)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->language)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->topic)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->library)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->issue)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->identifier)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->issn)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->asin)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->udc)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->lbc)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->ddc)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->lcc)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->doi)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->google_book_id)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->open_library_id)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->commentary)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->dpi)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->color)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->cleaned)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->orientation)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->paginated)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->scanned)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->bookmarked)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->searchable)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->file_size)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->file_name_extension)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->md5_hash)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->generic)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->visible)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->locator)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->local)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->time_added)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->time_last_modified)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->cover_url)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->tags)),
+		reinterpret_cast<uint64_t> (&(((struct database_entry *) 0)->identifier_without_dashes)),
+	};
+}
+database_entry_offsets;
 
 
 #if 1
@@ -315,7 +425,9 @@ private:
 			return -1;
 		len ++, offset ++;
 		int t;
-		QSharedPointer<QList<QString *>> scanned_database_items(new QList<QString *>(DATABASE_RECORD_COUNT));
+		QSharedPointer<QList<const QString *>> scanned_database_items(new QList<const QString *>(DATABASE_RECORD_COUNT));
+		struct database_entry record;
+
 		int record_index = 0;
 		for (const auto & item : database_items)
 		{
@@ -328,12 +440,14 @@ private:
 					if (t == -1)
 						return -1;
 					start = offset, xlen = t;
+					* (unsigned *) ((char *) & record + database_entry_offsets.offsets[record_index]) = 1;
 				break;
 				case database_item::STRING:
 					t = scan_string(data, offset);
 					if (t == -1)
 						return -1;
 					start = offset + 1, xlen = t - 2;
+					* (QString **) ((char *) & record + database_entry_offsets.offsets[record_index]) = empty_string; //new QString(data.mid(start, xlen));
 				break;
 			}
 			if (!xlen)
@@ -343,7 +457,16 @@ private:
 			}
 			else
 			{
-				scanned_database_items->operator[](record_index) = new QString(data.mid(start, xlen));
+				if (xlen < SHARED_STRING_LIMIT_LENGTH)
+				{
+					QString s = QString(data.mid(start, xlen));
+					auto i = shared_string_cache.find(s);
+					if (i == shared_string_cache.end())
+						i = shared_string_cache.insert(s, new QString(s));
+					scanned_database_items->operator[](record_index) = * i.operator->();
+				}
+				else
+					scanned_database_items->operator[](record_index) = new QString(data.mid(start, xlen));
 			}
 			record_index ++;
 			database_statistics.total_records ++;
@@ -378,6 +501,9 @@ private:
 		database_statistics.titles << scanned_database_items;
 		return len + 1;
 	}
+
+private:
+	QHash<QString, QString *>	shared_string_cache;
 public:
 	DatabaseScanner(const QString database_filename) : database_filename(database_filename) {}
 
@@ -391,7 +517,8 @@ public:
 		quint64 total_records = 0;
 
 		/* This is a list of all titles. All database records have their fields, including numerical fields, stored as lists of strings. */
-		QVector<QSharedPointer<QList<QString *>>> titles;
+		QVector<QSharedPointer<QList<const QString *>>> titles;
+		QVector<struct database_record *> xtitles;
 	}
 	database_statistics;
 signals:

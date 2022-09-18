@@ -365,8 +365,22 @@ VALUES
 	});
 	connect(ui->lineEditSearchTitles, &QLineEdit::returnPressed, [=](void)->void
 	{
+		QString s, search_text = ui->lineEditSearchTitles->text();
+		ui->lineEditSearchTitles->clear();
 		ui->plainTextEditTitles->clear();
-		ui->plainTextEditTitles->setPlainText("<<<search here>>>");
+		if (!search_text.length())
+		{
+			ui->plainTextEditTitles->setPlainText("Search string empty");
+			return;
+		}
+#if 0
+		int i = 0;
+		for (const auto & item : database_scanner->database_statistics.titles)
+			if ((* item).at(DATABASE_RECORD_INDEX::TITLE)->())
+				s += * ((* item).at(DATABASE_RECORD_INDEX::TITLE)), s += '\n', i ++;
+		ui->plainTextEditTitles->setPlainText(s);
+		ui->statusbar->showMessage(QString("%1 items found").arg(i));
+#endif
 	});
 }
 
