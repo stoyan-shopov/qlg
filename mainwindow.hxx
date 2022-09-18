@@ -426,7 +426,9 @@ private:
 		len ++, offset ++;
 		int t;
 		QSharedPointer<QList<const QString *>> scanned_database_items(new QList<const QString *>(DATABASE_RECORD_COUNT));
-		struct database_entry record;
+#if 1
+		struct database_entry * record = new database_entry;
+#endif
 
 		int record_index = 0;
 		for (const auto & item : database_items)
@@ -440,20 +442,37 @@ private:
 					if (t == -1)
 						return -1;
 					start = offset, xlen = t;
-					* (unsigned *) ((char *) & record + database_entry_offsets.offsets[record_index]) = 1;
+#if 1
+					bool flag;
+					uint64_t x;
+					x = data.mid(start, xlen).toUInt(& flag);
+					if (!flag)
+					{
+						qDebug() << "Cannot decode number from string";
+						return -1;
+					}
+#if 1
+					* (unsigned *) (((char *) record) + database_entry_offsets.offsets[record_index]) = x;
+					/* Dreaded special case... */
+					if (record_index == DATABASE_RECORD_INDEX::FILE_SIZE)
+						* (uint64_t *) (((char *) record) + database_entry_offsets.offsets[record_index]) = x;
+#endif
+#endif
 				break;
 				case database_item::STRING:
 					t = scan_string(data, offset);
 					if (t == -1)
 						return -1;
 					start = offset + 1, xlen = t - 2;
-					* (QString **) ((char *) & record + database_entry_offsets.offsets[record_index]) = empty_string; //new QString(data.mid(start, xlen));
 				break;
 			}
 			if (!xlen)
 			{
 				database_statistics.total_empty_records ++;
 				scanned_database_items->operator[](record_index) = empty_string;
+
+				if (item.type == database_item::STRING)
+					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = empty_string;
 			}
 			else
 			{
@@ -464,9 +483,16 @@ private:
 					if (i == shared_string_cache.end())
 						i = shared_string_cache.insert(s, new QString(s));
 					scanned_database_items->operator[](record_index) = * i.operator->();
+					if (item.type == database_item::STRING)
+						* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = * i.operator->();
 				}
 				else
-					scanned_database_items->operator[](record_index) = new QString(data.mid(start, xlen));
+				{
+					QString * s;
+					scanned_database_items->operator[](record_index) = (s = new QString(data.mid(start, xlen)));
+					if (item.type == database_item::STRING)
+						* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = s;
+				}
 			}
 			record_index ++;
 			database_statistics.total_records ++;
@@ -483,22 +509,25 @@ private:
 		if (offset < data.length() && data.at(offset) != ')')
 			return -1;
 
+#if 0
 		QString l(scanned_database_items->at(DATABASE_RECORD_INDEX::LANGUAGE)->toLower());
 		bool flag;
 		unsigned size = scanned_database_items->at(DATABASE_RECORD_INDEX::FILE_SIZE)->toUInt(& flag);
 		if (!flag)
 		{
-			QMessageBox::critical(0, "Bad file size value", "Could not decode file size value in database entry"); return -1;
+			QMessageBox::critical(0, "Bad file size value", "Could not decode file size value in database entry");
+			return -1;
 		}
-
-		database_statistics.total_byte_size += size;
-		database_statistics.language_counts.operator[](l) ++;
-		database_statistics.language_total_size.operator[](l) += size;
+#endif
+		database_statistics.total_byte_size += record->file_size;
+		database_statistics.language_counts.operator[](* record->language) ++;
+		database_statistics.language_total_size.operator[](* record->language) += record->file_size;
 #if 0
 		database_statistics.titles_by_topic.operator[]((* scanned_database_items).at(DATABASE_RECORD_INDEX::TOPIC))
 				<< (QStringList() << (* scanned_database_items).at(DATABASE_RECORD_INDEX::TITLE) << (* scanned_database_items).at(DATABASE_RECORD_INDEX::MD5_HASH));
 #endif
-		database_statistics.titles << scanned_database_items;
+		//database_statistics.titles << scanned_database_items;
+		database_statistics.xtitles << record;
 		return len + 1;
 	}
 
@@ -517,8 +546,8 @@ public:
 		quint64 total_records = 0;
 
 		/* This is a list of all titles. All database records have their fields, including numerical fields, stored as lists of strings. */
-		QVector<QSharedPointer<QList<const QString *>>> titles;
-		QVector<struct database_record *> xtitles;
+		//QVector<QSharedPointer<QList<const QString *>>> titles;
+		QVector<struct database_entry *> xtitles;
 	}
 	database_statistics;
 signals:

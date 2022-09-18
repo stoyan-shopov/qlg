@@ -305,9 +305,9 @@ VALUES
 		QString s;
 		int i = 0;
 		ui->plainTextEditTitles->clear();
-		for (const auto & item : database_scanner->database_statistics.titles)
-			if ((* item).at(DATABASE_RECORD_INDEX::TOPIC)->isEmpty())
-				s += * ((* item).at(DATABASE_RECORD_INDEX::TITLE)), s += '\n', i ++;
+		for (const auto & item : database_scanner->database_statistics.xtitles)
+			if (item->topic->isEmpty())
+				s += * item->title, s += '\n', i ++;
 		ui->plainTextEditTitles->setPlainText(s);
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
 	});
@@ -320,8 +320,8 @@ VALUES
 			QMessageBox::critical(0, "Error opening md5 hashes output file", "Failed to open md5 hashes output file for writing");
 			return;
 		}
-		for (const auto & item : database_scanner->database_statistics.titles)
-			f.write((* (* item).at(DATABASE_RECORD_INDEX::MD5_HASH) + '\n').toLocal8Bit());
+		for (const auto & item : database_scanner->database_statistics.xtitles)
+			f.write(((* item->md5_hash) + '\n').toLocal8Bit());
 	});
 
 	connect(ui->pushButtonFilterLanguages, &QPushButton::clicked, [=](void)->void
@@ -331,14 +331,11 @@ VALUES
 		QStringList languages;
 		languages << "bulgarian" << "russian" << "english" << "";
 		uint64_t total_size = 0;
-		for (const auto & item : database_scanner->database_statistics.titles)
-			if (languages.contains(( *item).at(DATABASE_RECORD_INDEX::LANGUAGE)->toLower()))
+		for (const auto & item : database_scanner->database_statistics.xtitles)
+			if (languages.contains(item->language->toLower()))
 			{
-				titles << * (* item).at(DATABASE_RECORD_INDEX::TITLE) + "\t\"\"\"" + * (* item).at(DATABASE_RECORD_INDEX::IDENTIFIER_WITHOUT_DASHES);
-				bool flag = false;
-				uint t = (* item).at(DATABASE_RECORD_INDEX::FILE_SIZE)->toUInt(& flag);
-				if (flag)
-					total_size += t;
+				titles << * item->title + "\t\"\"\"" + * item->identifier_without_dashes;
+				total_size += item->file_size;
 			}
 		std::sort(titles.begin(), titles.end());
 		QString s;
@@ -351,8 +348,8 @@ VALUES
 	connect(ui->pushButtonScanLanguages, &QPushButton::clicked, [=](void)->void
 	{
 		QMap<QString /* language */, int /* count */> languages;
-		for (const auto & item : database_scanner->database_statistics.titles)
-			languages.operator[](((* item).at(DATABASE_RECORD_INDEX::LANGUAGE))->toLower()) ++;
+		for (const auto & item : database_scanner->database_statistics.xtitles)
+			languages.operator[](item->language->toLower()) ++;
 		ui->plainTextEditLanguages->clear();
 		QMap<QString, int>::const_iterator i = languages.constBegin();
 		QString s;
