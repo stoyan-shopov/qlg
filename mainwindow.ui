@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1185</width>
+    <width>1287</width>
     <height>721</height>
    </rect>
   </property>
@@ -64,6 +64,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButtonListTitles">
+        <property name="text">
+         <string>List Titles</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="checkBox">
         <property name="text">
          <string>CheckBox</string>
@@ -73,7 +80,7 @@
      </layout>
     </item>
     <item>
-     <widget class="QSplitter" name="splitter_2">
+     <widget class="QSplitter" name="splitterMainVertical">
       <property name="orientation">
        <enum>Qt::Horizontal</enum>
       </property>
@@ -104,6 +111,9 @@
          <widget class="QPlainTextEdit" name="plainTextEditTitles">
           <property name="readOnly">
            <bool>true</bool>
+          </property>
+          <property name="textInteractionFlags">
+           <set>Qt::LinksAccessibleByKeyboard|Qt::LinksAccessibleByMouse|Qt::TextBrowserInteraction|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
           </property>
          </widget>
         </item>
@@ -177,7 +187,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1185</width>
+     <width>1287</width>
      <height>21</height>
     </rect>
    </property>

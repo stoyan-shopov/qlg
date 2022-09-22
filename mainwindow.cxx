@@ -1,10 +1,19 @@
 #include "mainwindow.hxx"
+#include <QSettings>
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
 	, ui(new Ui::MainWindow)
 {
 	ui->setupUi(this);
+	{
+		QSettings s("qlg.rc", QSettings::IniFormat);
+		restoreGeometry(s.value("window-geometry").toByteArray());
+		restoreState(s.value("window-state").toByteArray());
+		restoreState(s.value("window-state").toByteArray());
+		ui->splitterMainVertical->restoreState(s.value("main-splitter-state").toByteArray());
+	}
+	ui->plainTextEditTitles->setUndoRedoEnabled(false);
 	/*
 //!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT //;
 //!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS //;
@@ -360,6 +369,21 @@ VALUES
 		ui->plainTextEditLanguages->setPlainText(s);
 		ui->plainTextEditLanguages->moveCursor(QTextCursor::Start);
 	});
+	connect(ui->pushButtonListTitles, &QPushButton::clicked, [=](void)->void
+	{
+		const auto & titles = database_scanner->database_statistics.xtitles;
+		std::vector<unsigned> ind(titles.length());
+		unsigned i;
+		for (i = 0; i < ind.size(); ind.at(i) = i, i ++);
+		std::sort(ind.begin(), ind.end(), [=] (unsigned a, unsigned b) -> bool {
+			return * titles.at(a)->title < * titles.at(b)->title;
+		});
+		QString s;
+		for (const auto & i : ind)
+			s += "  " + * titles.at(i)->title + '\n';
+		ui->plainTextEditTitles->clear();
+		ui->plainTextEditTitles->setPlainText(s);
+	});
 	connect(ui->lineEditSearchTitles, &QLineEdit::returnPressed, [=](void)->void
 	{
 		QString s, search_text = ui->lineEditSearchTitles->text();
@@ -379,10 +403,31 @@ VALUES
 		ui->statusbar->showMessage(QString("%1 items found").arg(i));
 #endif
 	});
+
+	connect(ui->plainTextEditTitles, & QPlainTextEdit::cursorPositionChanged, [=] (void) -> void
+	{
+		qDebug() << "set block format";
+		QTextCharFormat cf;
+		cf.setBackground(Qt::yellow);
+		QTextCursor c(ui->plainTextEditTitles->textCursor().block());
+		QTextEdit::ExtraSelection selection;
+		c.clearSelection();
+		c.movePosition(QTextCursor::StartOfBlock);
+		c.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+
+		selection.cursor = c;
+		selection.format = cf;
+		ui->plainTextEditTitles->setExtraSelections(QList<QTextEdit::ExtraSelection>() << selection);
+	});
+	ui->plainTextEditTitles->installEventFilter(this);
 }
 
 MainWindow::~MainWindow()
 {
+	QSettings s("qlg.rc", QSettings::IniFormat);
+	s.setValue("window-geometry", saveGeometry());
+	s.setValue("window-state", saveState());
+	s.setValue("main-splitter-state", ui->splitterMainVertical->saveState());
 	/* If any database scanner thread cleanup is needed - make sure to do so here.
 	 * At this time, no cleanup is needed, so the program exits immediately. */
 	delete ui;

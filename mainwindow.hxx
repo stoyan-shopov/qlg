@@ -10,6 +10,7 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QSharedPointer>
+#include <QTextBlock>
 
 #include <QDebug>
 #include "ui_mainwindow.h"
@@ -474,7 +475,7 @@ private:
 				if (item.type == database_item::STRING)
 					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = empty_string;
 			}
-			else
+			else if (item.type == database_item::STRING)
 			{
 				if (xlen < SHARED_STRING_LIMIT_LENGTH)
 				{
@@ -483,15 +484,12 @@ private:
 					if (i == shared_string_cache.end())
 						i = shared_string_cache.insert(s, new QString(s));
 					//scanned_database_items->operator[](record_index) = * i.operator->();
-					if (item.type == database_item::STRING)
-						* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = * i.operator->();
+					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = * i.operator->();
 				}
 				else
 				{
-					QString * s = new QString(data.mid(start, xlen));
 					//scanned_database_items->operator[](record_index) = s;
-					if (item.type == database_item::STRING)
-						* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = s;
+					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = new QString(data.mid(start, xlen));
 				}
 			}
 			record_index ++;
@@ -1007,6 +1005,43 @@ private:
 				ui->plainTextEditTopics->appendPlainText(QString("%1::%2").arg(match.captured(1)).arg(match.captured(2)));
 		}
 		ui->plainTextEditTopics->moveCursor(QTextCursor::Start);
+	}
+protected:
+	bool eventFilter(QObject * obj, QEvent * event) override
+	{
+		if (obj == ui->plainTextEditTitles && event->type() == QEvent::KeyPress)
+		{
+			QKeyEvent * e = (QKeyEvent *) event;
+			if (e->key() == Qt::Key_Space)
+			{
+				int t, end_block;
+				QTextCursor c(ui->plainTextEditTitles->textCursor());
+				int start = c.selectionStart(), end = c.selectionEnd();
+				qDebug() << "cursor selection:" << start << end;
+				c.setPosition(end);
+				qDebug() << (end_block = c.blockNumber());
+				c.setPosition(start);
+				qDebug() << (t = c.blockNumber());
+
+				c.movePosition(QTextCursor::StartOfBlock);
+				while (1)
+				{
+					c.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor);
+					QString s = c.selectedText();
+					if (s == "x")
+						s = " ";
+					else
+						s = "x";
+					c.insertText(s);
+					if (t == end_block)
+						break;
+					t ++;
+					c.movePosition(QTextCursor::NextBlock);
+				}
+				return true;
+			}
+		}
+		return QMainWindow::eventFilter(obj, event);
 	}
 private slots:
 	void displayErrorMessage(const QString & error_message)
