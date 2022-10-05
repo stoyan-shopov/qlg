@@ -372,17 +372,31 @@ VALUES
 	connect(ui->pushButtonListTitles, &QPushButton::clicked, [=](void)->void
 	{
 		const auto & titles = database_scanner->database_statistics.xtitles;
-		std::vector<unsigned> ind(titles.length());
+		sorted_indexes = std::vector<unsigned>(titles.length());
 		unsigned i;
-		for (i = 0; i < ind.size(); ind.at(i) = i, i ++);
-		std::sort(ind.begin(), ind.end(), [=] (unsigned a, unsigned b) -> bool {
+		for (i = 0; i < sorted_indexes.size(); sorted_indexes.at(i) = i, i ++);
+		std::sort(sorted_indexes.begin(), sorted_indexes.end(), [=] (const unsigned a, const unsigned b) -> bool {
 			return * titles.at(a)->title < * titles.at(b)->title;
 		});
-		QString s;
-		for (const auto & i : ind)
-			s += "  " + * titles.at(i)->title + '\n';
-		ui->plainTextEditTitles->clear();
-		ui->plainTextEditTitles->setPlainText(s);
+		refreshTitles();
+	});
+
+	connect(ui->pushButtonStoreTitleData, &QPushButton::clicked, [=](void)->void
+	{
+		if (!sorted_indexes.size())
+		{
+			QMessageBox::warning(0, "Title information not loaded", "Title information not loaded");
+			return;
+		}
+		QFile f("title-information.txt");
+		if (!f.open(QFile::WriteOnly))
+		{
+			QMessageBox::critical(0, "Cannot open output file", QString("Cannot open file\n%1\nfor writing.").arg(f.fileName()));
+			return;
+		}
+		const auto & titles = database_scanner->database_statistics.xtitles;
+		for (const auto & i : sorted_indexes)
+			f.write(QString("%1:%2\n").arg(*titles.at(i)->md5_hash).arg(titles.at(i)->flags).toLocal8Bit());
 	});
 	connect(ui->lineEditSearchTitles, &QLineEdit::returnPressed, [=](void)->void
 	{

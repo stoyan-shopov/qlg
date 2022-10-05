@@ -71,6 +71,20 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButtonLoadTitleData">
+        <property name="text">
+         <string>Load title data</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonStoreTitleData">
+        <property name="text">
+         <string>Store title data</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="checkBox">
         <property name="text">
          <string>CheckBox</string>

@@ -188,6 +188,15 @@ struct database_entry
 	QString *		cover_url;
 	QString *		tags;
 	QString *		identifier_without_dashes;
+
+	union
+	{
+		struct
+		{
+			unsigned	is_in_main_store : 1;
+		};
+		unsigned flags = 1;
+	};
 };
 
 const struct
@@ -514,8 +523,8 @@ private:
 		}
 #endif
 		database_statistics.total_byte_size += record->file_size;
-		database_statistics.language_counts.operator[](* record->language) ++;
-		database_statistics.language_total_size.operator[](* record->language) += record->file_size;
+		database_statistics.language_counts.operator[]((* record->language).toLower()) ++;
+		database_statistics.language_total_size.operator[]((* record->language).toLower()) += record->file_size;
 #if 0
 		database_statistics.titles_by_topic.operator[]((* scanned_database_items).at(DATABASE_RECORD_INDEX::TOPIC))
 				<< (QStringList() << (* scanned_database_items).at(DATABASE_RECORD_INDEX::TITLE) << (* scanned_database_items).at(DATABASE_RECORD_INDEX::MD5_HASH));
@@ -972,6 +981,8 @@ public:
 	MainWindow(QWidget *parent = nullptr);
 	~MainWindow();
 
+	std::vector<unsigned> sorted_indexes;
+
 private:
 	QThread database_scanner_thread;
 	DatabaseScanner * database_scanner;
@@ -987,8 +998,6 @@ private:
 		}
 		return topic;
 	}
-
-	//void scrollToTop
 
 	void populate_topic_list(void)
 	{
@@ -1006,6 +1015,17 @@ private:
 		}
 		ui->plainTextEditTopics->moveCursor(QTextCursor::Start);
 	}
+
+	void refreshTitles(void)
+	{
+		const auto & titles = database_scanner->database_statistics.xtitles;
+		QString s;
+		ui->plainTextEditTitles->clear();
+		for (const auto & i : sorted_indexes)
+			s += (titles.at(i)->is_in_main_store ? "  " : "x ") + * titles.at(i)->title + '\n';
+		ui->plainTextEditTitles->setPlainText(s);
+	}
+
 protected:
 	bool eventFilter(QObject * obj, QEvent * event) override
 	{
@@ -1024,19 +1044,24 @@ protected:
 				qDebug() << (t = c.blockNumber());
 
 				c.movePosition(QTextCursor::StartOfBlock);
+				auto & titles = database_scanner->database_statistics.xtitles;
 				while (1)
 				{
-					c.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor);
-					QString s = c.selectedText();
-					if (s == "x")
-						s = " ";
-					else
-						s = "x";
+					c.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+					unsigned index = sorted_indexes.at(t);
+					titles.at(index)->is_in_main_store = !titles.at(index)->is_in_main_store;
+					const QString s = (titles.at(index)->is_in_main_store ? "  " : "x ") + * titles.at(index)->title;
 					c.insertText(s);
 					if (t == end_block)
 						break;
 					t ++;
 					c.movePosition(QTextCursor::NextBlock);
+				}
+				/*! \todo: make this a setting - clear selection upon title classification. */
+				if (0)
+				{
+					c.clearSelection();
+					ui->plainTextEditTitles->setTextCursor(c);
 				}
 				return true;
 			}
