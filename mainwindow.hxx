@@ -11,6 +11,7 @@
 #include <QElapsedTimer>
 #include <QSharedPointer>
 #include <QTextBlock>
+#include <QTextCodec>
 
 #include <QDebug>
 #include "ui_mainwindow.h"
@@ -254,6 +255,258 @@ const struct
 	};
 }
 database_entry_offsets;
+
+
+class XString
+{
+private:
+	uint64_t offset;
+	unsigned length;
+	static QSharedPointer<const QByteArray> data;
+public:
+	XString(uint64_t offset, unsigned length) : offset(offset), length(length){}
+	static void setData(QSharedPointer<const QByteArray> d) { data = d; }
+	void getLine(QString & s) const { s = QByteArray(data->constData() + offset, length); }
+};
+
+class XDatabaseScanner
+{
+private:
+	const QString database_filename;
+	QSharedPointer<QByteArray> data;
+	std::vector<XString> lines;
+
+private:
+#if 1
+	static char scan_utf8_character(const char * start, const char * limit, unsigned & expected_run_length)
+	{
+		const char c = * start ++;
+		if (!(c & 0b10000000))
+		{
+			expected_run_length = 1;
+			return c;
+		}
+		else if ((c & 0b11100000) == 0b11000000)
+			expected_run_length = 2;
+		else if ((c & 0b11110000) == 0b11100000)
+			expected_run_length = 3;
+		else if ((c & 0b11111000) == 0b11110000)
+			expected_run_length = 4;
+		else
+		{
+abort:
+			throw "Bad utf8 encoded data.";
+		}
+		if (start + expected_run_length > limit)
+			goto abort;
+		unsigned i = expected_run_length;
+		while (-- i)
+			if ((* start ++ & 0b11000000) != 0b10000000)
+				goto abort;
+		return 0;
+
+	}
+	static inline unsigned scan_number(const char * start, const char * limit)
+	{
+		const char * p = start;
+		while (p < limit && QChar::isDigit(* p))
+			p ++;
+		if (p == start)
+			throw "Bad number - string represantation length is zero.";
+		return p - start;
+	}
+#if 0
+	int scan_string(const QString & data, int offset)
+	{
+		int len = 0;
+		if (offset < data.length() && data.at(offset) != '\'')
+			return -1;
+		len ++, offset ++;
+		while (offset < data.length() && data.at(offset) != '\'')
+		{
+			/* handle escaped characters */
+			if (data.at(offset) == '\\')
+			{
+				len ++, offset ++;
+				if (offset == data.length())
+					return -1;
+			}
+			len ++, offset ++;
+		}
+		if (offset < data.length() && data.at(offset) == '\'')
+			return len + 1;
+		return -1;
+	}
+
+	int scan_database_record(const QString & data, int offset) {
+		int len = 0;
+		if (offset < data.length() && data.at(offset) != '\(')
+			return -1;
+		len ++, offset ++;
+		int t;
+		struct database_entry * record = new database_entry;
+
+		int record_index = 0;
+		for (const auto & item : database_items)
+		{
+			int start, xlen;
+			switch (item.type)
+			{
+				default: QMessageBox::critical(0, "Unknown database item type", "Database item type unrecognized; aborting"); return -1;
+				case database_item::NUMBER:
+					t = scan_number(data, offset);
+					if (t == -1)
+						return -1;
+					start = offset, xlen = t;
+					bool flag;
+					uint64_t x;
+					x = data.mid(start, xlen).toUInt(& flag);
+					if (!flag)
+					{
+						qDebug() << "Cannot decode number from string";
+						return -1;
+					}
+					* (unsigned *) (((char *) record) + database_entry_offsets.offsets[record_index]) = x;
+					/* Dreaded special case... */
+					if (record_index == DATABASE_RECORD_INDEX::FILE_SIZE)
+						* (uint64_t *) (((char *) record) + database_entry_offsets.offsets[record_index]) = x;
+				break;
+				case database_item::STRING:
+					t = scan_string(data, offset);
+					if (t == -1)
+						return -1;
+					start = offset + 1, xlen = t - 2;
+				break;
+			}
+			if (!xlen)
+			{
+				database_statistics.total_empty_records ++;
+				//scanned_database_items->operator[](record_index) = empty_string;
+
+				if (item.type == database_item::STRING)
+					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = empty_string;
+			}
+			else if (item.type == database_item::STRING)
+			{
+				if (xlen < SHARED_STRING_LIMIT_LENGTH)
+				{
+					QString s = QString(data.mid(start, xlen));
+					auto i = shared_string_cache.find(s);
+					if (i == shared_string_cache.end())
+						i = shared_string_cache.insert(s, new QString(s));
+					//scanned_database_items->operator[](record_index) = * i.operator->();
+					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = * i.operator->();
+				}
+				else
+				{
+					//scanned_database_items->operator[](record_index) = s;
+					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = new QString(data.mid(start, xlen));
+				}
+			}
+			record_index ++;
+			database_statistics.total_records ++;
+			len += t, offset += t;
+			/* HACK */
+			if (offset < data.length() && data.at(offset) == ',')
+				len ++, offset ++;
+		}
+
+		if (offset < data.length() && data.at(offset) != ')')
+			return -1;
+
+		return len + 1;
+	}
+#endif
+#endif
+public:
+	XDatabaseScanner(const QString & database_filename) : database_filename(database_filename){}
+	bool scan(void)
+	{
+		QElapsedTimer timer;
+		timer.start();
+		{
+			QFile f(database_filename);
+			if (!f.open(QFile::ReadOnly))
+			{
+				qCritical() << "Failed to open database file for reading:" << database_filename;
+				return false;
+			}
+			data = QSharedPointer<QByteArray>(new QByteArray(f.readAll()));
+			XString::setData(data);
+		}
+		qInfo() << "Reading the database took" << timer.elapsed() << "milliseconds";
+		timer.restart();
+
+		uint64_t start_offset = 0, offset = 0, length = 0, total_length = data->length();
+		const char * t = data->constData();
+		char c;
+		unsigned expected_run_length, i;
+
+		while (offset < total_length)
+		{
+			c = * t ++;
+			if (!(c & 0x80))
+			{
+				/* 'normal' ascii character */
+				offset ++;
+				if (c == '\n')
+				{
+					/* Note: newline characters are stripped (not accounted for in the 'length' field). */
+					lines.push_back(XString(start_offset, length));
+					start_offset = offset;
+					length = 0;
+					continue;
+				}
+				length ++;
+				continue;
+			}
+
+			if ((c & 0b11100000) == 0b11000000)
+				expected_run_length = 2;
+			else if ((c & 0b11110000) == 0b11100000)
+				expected_run_length = 3;
+			else if ((c & 0b11111000) == 0b11110000)
+				expected_run_length = 4;
+			else
+			{
+abort:
+				qCritical() << "Bad utf8 encoded data at offset" << offset;
+				qCritical() << "Aborting utf8 decoding.";
+				return false;
+			}
+			if (expected_run_length + offset > total_length)
+				goto abort;
+			i = expected_run_length;
+			while (-- i)
+				if ((* t ++ & 0b11000000) != 0b10000000)
+					goto abort;
+			length += expected_run_length;
+			offset += expected_run_length;
+		}
+		if (length)
+			/* Account for the last line, which may not end with a newline. */
+			lines.push_back(XString(start_offset, length));
+
+		qInfo() << "Scanning the database took" << timer.elapsed() << "milliseconds";
+		qInfo() << lines.size() << "lines found.";
+		timer.restart();
+
+		QString line;
+		unsigned parse_line_count = 0;
+		QString needle(") VALUES (");
+		for (const auto & xstring : lines)
+		{
+			xstring.getLine(line);
+			if (!line.startsWith("INSERT INTO `updated`"))
+				continue;
+			if (line.indexOf(needle) != -1)
+				parse_line_count ++;
+		}
+		qInfo() << "Scraping the database for potential record lines took" << timer.elapsed() << "milliseconds";
+		qInfo() << parse_line_count << "lines found.";
+		return true;
+	}
+};
 
 
 #if 1
@@ -553,6 +806,7 @@ public:
 		QVector<struct database_entry *> xtitles;
 	}
 	database_statistics;
+	QVector<struct database_entry *> & titles = database_statistics.xtitles;
 signals:
 	void error(const QString error_message);
 	void message(const QString message);
@@ -1018,12 +1272,50 @@ private:
 
 	void refreshTitles(void)
 	{
-		const auto & titles = database_scanner->database_statistics.xtitles;
+		const auto & titles = database_scanner->titles;
 		QString s;
 		ui->plainTextEditTitles->clear();
+		QElapsedTimer t;
+		t.start();
 		for (const auto & i : sorted_indexes)
-			s += (titles.at(i)->is_in_main_store ? "  " : "x ") + * titles.at(i)->title + '\n';
+		{
+			const QString * title = titles.at(i)->title;
+			if (!title->contains('\n'))
+				s += (titles.at(i)->is_in_main_store ? "  " : "x ") + * title + '\n';
+			else
+			{
+				qWarning() << "Title contains newline characters:" << title;
+				qWarning() << "Adjsuting title string";
+				QString t(* title);
+				s += (titles.at(i)->is_in_main_store ? "  " : "x ") + t.remove('\n') + '\n';
+			}
+			if (title->startsWith("A Shorter Guide to the Holy Spirit"))
+			{
+				qDebug() << "xxx" << title->contains('\n');
+				qDebug() << "xxx" << title->contains('\'');
+				qDebug() << "xxx" << * title;
+
+				QByteArray data(title->toUtf8());
+				QTextCodec::ConverterState state;
+				QTextCodec *codec = QTextCodec::codecForName("UTF-8");
+				const QString text = codec->toUnicode(data.constData(), data.size(), & state);
+				if (state.invalidChars > 0) {
+					qDebug() << "Not a valid UTF-8 sequence.";
+				}
+			}
+		}
 		ui->plainTextEditTitles->setPlainText(s);
+		{
+			QTextCursor c = ui->plainTextEditTitles->textCursor();
+			c.movePosition(QTextCursor::Start);
+			while (!c.atEnd())
+			{
+				if (c.block().text().isEmpty())
+					qDebug() << "empty block" << c.blockNumber();
+				c.movePosition(QTextCursor::NextBlock);
+			}
+		}
+		qDebug() << "Refreshing titles took" << t.elapsed() << "milliseconds";
 	}
 
 protected:
@@ -1044,7 +1336,7 @@ protected:
 				qDebug() << (t = c.blockNumber());
 
 				c.movePosition(QTextCursor::StartOfBlock);
-				auto & titles = database_scanner->database_statistics.xtitles;
+				auto & titles = database_scanner->titles;
 				while (1)
 				{
 					c.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);

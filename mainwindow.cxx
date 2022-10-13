@@ -1,6 +1,9 @@
 #include "mainwindow.hxx"
 #include <QSettings>
 
+
+QSharedPointer<const QByteArray> XString::data;
+
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
 	, ui(new Ui::MainWindow)
@@ -262,6 +265,11 @@ VALUES
 	//QString database_file = "D:/src/libgen_compact.sql";
 	QString database_file = "c:/tmp/libgen_compact.sql";
 
+	{
+		XDatabaseScanner xscanner(database_file);
+		xscanner.scan();
+	}
+
 	populate_topic_list();
 	database_scanner = new DatabaseScanner(database_file);
 	database_scanner->moveToThread(&database_scanner_thread);
@@ -314,7 +322,7 @@ VALUES
 		QString s;
 		int i = 0;
 		ui->plainTextEditTitles->clear();
-		for (const auto & item : database_scanner->database_statistics.xtitles)
+		for (const auto & item : database_scanner->titles)
 			if (item->topic->isEmpty())
 				s += * item->title, s += '\n', i ++;
 		ui->plainTextEditTitles->setPlainText(s);
@@ -329,7 +337,7 @@ VALUES
 			QMessageBox::critical(0, "Error opening md5 hashes output file", "Failed to open md5 hashes output file for writing");
 			return;
 		}
-		for (const auto & item : database_scanner->database_statistics.xtitles)
+		for (const auto & item : database_scanner->titles)
 			f.write(((* item->md5_hash) + '\n').toLocal8Bit());
 	});
 
@@ -340,7 +348,7 @@ VALUES
 		QStringList languages;
 		languages << "bulgarian" << "russian" << "english" << "";
 		uint64_t total_size = 0;
-		for (const auto & item : database_scanner->database_statistics.xtitles)
+		for (const auto & item : database_scanner->titles)
 			if (languages.contains(item->language->toLower()))
 			{
 				titles << * item->title + "\t\"\"\"" + * item->identifier_without_dashes;
@@ -357,7 +365,7 @@ VALUES
 	connect(ui->pushButtonScanLanguages, &QPushButton::clicked, [=](void)->void
 	{
 		QMap<QString /* language */, int /* count */> languages;
-		for (const auto & item : database_scanner->database_statistics.xtitles)
+		for (const auto & item : database_scanner->titles)
 			languages.operator[](item->language->toLower()) ++;
 		ui->plainTextEditLanguages->clear();
 		QMap<QString, int>::const_iterator i = languages.constBegin();
@@ -371,7 +379,7 @@ VALUES
 	});
 	connect(ui->pushButtonListTitles, &QPushButton::clicked, [=](void)->void
 	{
-		const auto & titles = database_scanner->database_statistics.xtitles;
+		const auto & titles = database_scanner->titles;
 		sorted_indexes = std::vector<unsigned>(titles.length());
 		unsigned i;
 		for (i = 0; i < sorted_indexes.size(); sorted_indexes.at(i) = i, i ++);
@@ -394,7 +402,7 @@ VALUES
 			QMessageBox::critical(0, "Cannot open output file", QString("Cannot open file\n%1\nfor writing.").arg(f.fileName()));
 			return;
 		}
-		const auto & titles = database_scanner->database_statistics.xtitles;
+		const auto & titles = database_scanner->titles;
 		for (const auto & i : sorted_indexes)
 			f.write(QString("%1:%2\n").arg(*titles.at(i)->md5_hash).arg(titles.at(i)->flags).toLocal8Bit());
 	});
