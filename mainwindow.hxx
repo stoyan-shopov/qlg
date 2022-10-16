@@ -11,7 +11,6 @@
 #include <QElapsedTimer>
 #include <QSharedPointer>
 #include <QTextBlock>
-#include <QTextCodec>
 
 #include <QDebug>
 #include "ui_mainwindow.h"
@@ -265,9 +264,15 @@ private:
 	static QSharedPointer<const QByteArray> data;
 public:
 	XString(uint64_t offset, unsigned length) : offset(offset), length(length){}
+	XString(void){}
 	static void setData(QSharedPointer<const QByteArray> d) { data = d; }
-	void getLine(QString & s) const { s = QByteArray(data->constData() + offset, length); }
+	void getString(QString & s) const { s = QByteArray(data->constData() + offset, length); }
+	uint64_t getOffset(void) const { return offset; }
+	unsigned getLength(void) const { return length; }
 };
+
+
+static int records_scanned;
 
 class XDatabaseScanner
 {
@@ -278,7 +283,7 @@ private:
 
 private:
 #if 1
-	static char scan_utf8_character(const char * start, const char * limit, unsigned & expected_run_length)
+	static inline char scan_utf8_character(const char * start, const char * limit, unsigned & expected_run_length)
 	{
 		const char c = * start ++;
 		if (!(c & 0b10000000))
@@ -312,32 +317,66 @@ abort:
 		while (p < limit && QChar::isDigit(* p))
 			p ++;
 		if (p == start)
-			throw "Bad number - string represantation length is zero.";
+			throw "Bad number - string representation length is zero.";
 		return p - start;
 	}
-#if 0
-	int scan_string(const QString & data, int offset)
+	static inline unsigned scan_string(const char * start, const char * limit)
 	{
-		int len = 0;
-		if (offset < data.length() && data.at(offset) != '\'')
-			return -1;
-		len ++, offset ++;
-		while (offset < data.length() && data.at(offset) != '\'')
+		const char * s = start;
+		while (s < limit && * s != '\'')
 		{
 			/* handle escaped characters */
-			if (data.at(offset) == '\\')
-			{
-				len ++, offset ++;
-				if (offset == data.length())
-					return -1;
-			}
-			len ++, offset ++;
+			if (* s == '\\')
+				s ++;
+			s ++;
 		}
-		if (offset < data.length() && data.at(offset) == '\'')
-			return len + 1;
-		return -1;
+		if (s < limit && * s == '\'')
+			return s - start;
+		throw "Bad string - does not end with \'";
 	}
+	static unsigned scan_database_record(const char * start, const char * limit)
+	{
+		if (start >= limit)
+			throw "Bad database record: start >= limit.";
+		const char * s = start;
+		if (* s ++ != '(')
+			throw "Bad database record: does not start with '('";
+		for (const auto & item : database_items)
+		{
+			unsigned length;
+			if (s >= limit)
+				throw "Bad database record: s >= limit.";
+			if (item.type == database_item::STRING)
+			{
+				if (* s ++ != '\'')
+					throw "Bad string - does not start with \'";
+				length = scan_string(s, limit);
+				s += length;
+				if (s >= limit)
+					throw "Bad database record: s >= limit.";
+				if (* s ++ != '\'')
+					throw "Bad database record string.";
+			}
+			else if (item.type == database_item::NUMBER)
+			{
+				s += scan_number(s, limit);
+			}
+			if (s >= limit)
+				throw "Bad database record: s >= limit.";
+			if (* s == ',')
+				s ++;
+		}
+		if (s >= limit)
+			throw "Bad database record: s >= limit.";
+		if (* s ++ != ')')
+			throw "Bad database record, does not end with ')'.";
+		if (s < limit && ( * s == ',' || * s == ';'))
+			s ++;
+		records_scanned ++;
+		return s - start;
 
+	}
+#if 0
 	int scan_database_record(const QString & data, int offset) {
 		int len = 0;
 		if (offset < data.length() && data.at(offset) != '\(')
@@ -418,6 +457,14 @@ abort:
 	}
 #endif
 #endif
+	bool scan_records(const char * start, const char * limit)
+	{
+		while (start < limit)
+		{
+			start += scan_database_record(start, limit);
+		}
+		return true;
+	}
 public:
 	XDatabaseScanner(const QString & database_filename) : database_filename(database_filename){}
 	bool scan(void)
@@ -440,48 +487,27 @@ public:
 		uint64_t start_offset = 0, offset = 0, length = 0, total_length = data->length();
 		const char * t = data->constData();
 		char c;
-		unsigned expected_run_length, i;
+		unsigned expected_run_length;
 
 		while (offset < total_length)
 		{
-			c = * t ++;
-			if (!(c & 0x80))
+			c = scan_utf8_character(t, t + total_length, expected_run_length);
+			t += expected_run_length;
+			length += expected_run_length;
+			offset += expected_run_length;
+			if (expected_run_length == 1)
 			{
 				/* 'normal' ascii character */
-				offset ++;
 				if (c == '\n')
 				{
 					/* Note: newline characters are stripped (not accounted for in the 'length' field). */
-					lines.push_back(XString(start_offset, length));
+					lines.push_back(XString(start_offset, length - 1));
 					start_offset = offset;
 					length = 0;
 					continue;
 				}
-				length ++;
 				continue;
 			}
-
-			if ((c & 0b11100000) == 0b11000000)
-				expected_run_length = 2;
-			else if ((c & 0b11110000) == 0b11100000)
-				expected_run_length = 3;
-			else if ((c & 0b11111000) == 0b11110000)
-				expected_run_length = 4;
-			else
-			{
-abort:
-				qCritical() << "Bad utf8 encoded data at offset" << offset;
-				qCritical() << "Aborting utf8 decoding.";
-				return false;
-			}
-			if (expected_run_length + offset > total_length)
-				goto abort;
-			i = expected_run_length;
-			while (-- i)
-				if ((* t ++ & 0b11000000) != 0b10000000)
-					goto abort;
-			length += expected_run_length;
-			offset += expected_run_length;
 		}
 		if (length)
 			/* Account for the last line, which may not end with a newline. */
@@ -493,17 +519,40 @@ abort:
 
 		QString line;
 		unsigned parse_line_count = 0;
-		QString needle(") VALUES (");
+		const char * header = "INSERT INTO `updated`";
+		size_t header_length = strlen(header);
+		const char * needle = ") VALUES (";
+		size_t needle_length = strlen(needle);
 		for (const auto & xstring : lines)
 		{
-			xstring.getLine(line);
+			char * s = data->data() + xstring.getOffset();
+			size_t length = xstring.getLength();
+			if (strncmp(header, s, std::min(length, header_length)))
+				continue;
+			/* HACK. Temporarily make this line nul-terminated, so that the 'strstr()' function can work properly. */
+			char c = s[length - 1];
+			s[length - 1] = 0;
+			const char * t = strstr(s, needle);
+			s[length - 1] = c;
+			if (!t)
+				continue;
+			if (scan_records(t + needle_length - /* start parsing from the '(' character */ 1, s + length))
+				parse_line_count ++;
+			else
+			{
+				qCritical() << "Failed to parse line";
+				return false;
+			}
+#if 0
+			xstring.getString(line);
 			if (!line.startsWith("INSERT INTO `updated`"))
 				continue;
 			if (line.indexOf(needle) != -1)
 				parse_line_count ++;
+#endif
 		}
 		qInfo() << "Scraping the database for potential record lines took" << timer.elapsed() << "milliseconds";
-		qInfo() << parse_line_count << "lines found.";
+		qInfo() << parse_line_count << "lines found. Records scanned:" << records_scanned;
 		return true;
 	}
 };
@@ -1296,12 +1345,6 @@ private:
 				qDebug() << "xxx" << * title;
 
 				QByteArray data(title->toUtf8());
-				QTextCodec::ConverterState state;
-				QTextCodec *codec = QTextCodec::codecForName("UTF-8");
-				const QString text = codec->toUnicode(data.constData(), data.size(), & state);
-				if (state.invalidChars > 0) {
-					qDebug() << "Not a valid UTF-8 sequence.";
-				}
 			}
 		}
 		ui->plainTextEditTitles->setPlainText(s);
