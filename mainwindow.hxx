@@ -376,86 +376,6 @@ abort:
 		return s - start;
 
 	}
-#if 0
-	int scan_database_record(const QString & data, int offset) {
-		int len = 0;
-		if (offset < data.length() && data.at(offset) != '\(')
-			return -1;
-		len ++, offset ++;
-		int t;
-		struct database_entry * record = new database_entry;
-
-		int record_index = 0;
-		for (const auto & item : database_items)
-		{
-			int start, xlen;
-			switch (item.type)
-			{
-				default: QMessageBox::critical(0, "Unknown database item type", "Database item type unrecognized; aborting"); return -1;
-				case database_item::NUMBER:
-					t = scan_number(data, offset);
-					if (t == -1)
-						return -1;
-					start = offset, xlen = t;
-					bool flag;
-					uint64_t x;
-					x = data.mid(start, xlen).toUInt(& flag);
-					if (!flag)
-					{
-						qDebug() << "Cannot decode number from string";
-						return -1;
-					}
-					* (unsigned *) (((char *) record) + database_entry_offsets.offsets[record_index]) = x;
-					/* Dreaded special case... */
-					if (record_index == DATABASE_RECORD_INDEX::FILE_SIZE)
-						* (uint64_t *) (((char *) record) + database_entry_offsets.offsets[record_index]) = x;
-				break;
-				case database_item::STRING:
-					t = scan_string(data, offset);
-					if (t == -1)
-						return -1;
-					start = offset + 1, xlen = t - 2;
-				break;
-			}
-			if (!xlen)
-			{
-				database_statistics.total_empty_records ++;
-				//scanned_database_items->operator[](record_index) = empty_string;
-
-				if (item.type == database_item::STRING)
-					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = empty_string;
-			}
-			else if (item.type == database_item::STRING)
-			{
-				if (xlen < SHARED_STRING_LIMIT_LENGTH)
-				{
-					QString s = QString(data.mid(start, xlen));
-					auto i = shared_string_cache.find(s);
-					if (i == shared_string_cache.end())
-						i = shared_string_cache.insert(s, new QString(s));
-					//scanned_database_items->operator[](record_index) = * i.operator->();
-					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = * i.operator->();
-				}
-				else
-				{
-					//scanned_database_items->operator[](record_index) = s;
-					* (QString **) (((char *) record) + database_entry_offsets.offsets[record_index]) = new QString(data.mid(start, xlen));
-				}
-			}
-			record_index ++;
-			database_statistics.total_records ++;
-			len += t, offset += t;
-			/* HACK */
-			if (offset < data.length() && data.at(offset) == ',')
-				len ++, offset ++;
-		}
-
-		if (offset < data.length() && data.at(offset) != ')')
-			return -1;
-
-		return len + 1;
-	}
-#endif
 #endif
 	bool scan_records(const char * start, const char * limit)
 	{
@@ -1324,6 +1244,11 @@ private:
 		const auto & titles = database_scanner->titles;
 		QString s;
 		ui->plainTextEditTitles->clear();
+		/* For some reason, it seems that some utf8 characters result in more than one text block generated per titles,
+		 * which at this time is problematic. Enable the code block below, to perform a scan for such titles.
+		 * This procedure is slow, so use it only when necessary.
+		 * This may actually be an issue with 'QPlainTextEdit()'...*/
+#if DEBUG_TITLES
 		QElapsedTimer t;
 		t.start();
 		for (const auto & i : sorted_indexes)
@@ -1359,6 +1284,10 @@ private:
 			}
 		}
 		qDebug() << "Refreshing titles took" << t.elapsed() << "milliseconds";
+#endif
+		for (const auto & i : sorted_indexes)
+			s += (titles.at(i)->is_in_main_store ? "  " : "x ") + * titles.at(i)->title + '\n';
+		ui->plainTextEditTitles->setPlainText(s);
 	}
 
 protected:

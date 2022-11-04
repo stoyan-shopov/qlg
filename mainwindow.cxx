@@ -268,6 +268,7 @@ VALUES
 	{
 		XDatabaseScanner xscanner(database_file);
 		xscanner.scan();
+		QMessageBox::information(0, "Fast scan complete.", "Fast scan complete.");
 	}
 
 	populate_topic_list();
@@ -404,7 +405,9 @@ VALUES
 		}
 		const auto & titles = database_scanner->titles;
 		for (const auto & i : sorted_indexes)
-			f.write(QString("%1:%2\n").arg(*titles.at(i)->md5_hash).arg(titles.at(i)->flags).toLocal8Bit());
+			/*! \warning DO NOT USE Qt 'QString(...).arg(...)' PRINTING HERE!!!
+			 *  TITLES CAN CONTAIN PERCENTAGE ('%') CHARACTERS, AND THAT CAN CAUSE MUCH TROUBLE!!! */
+			f.write((*titles.at(i)->title + ":>>>:" + * titles.at(i)->md5_hash).toLocal8Bit() + '\n');
 	});
 	connect(ui->lineEditSearchTitles, &QLineEdit::returnPressed, [=](void)->void
 	{
